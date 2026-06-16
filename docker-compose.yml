@@ -1,24 +1,29 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Axxeler CRM — Production Docker Compose
+#  Live URL : https://crm.axxeler.in
+# ═══════════════════════════════════════════════════════════════════════════════
+
 services:
 
-  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  # ── PostgreSQL ────────────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER:     ${DB_USER:-axxeler}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB:       ${DB_NAME:-axxeler_crm}
+      POSTGRES_USER:     axxeler
+      POSTGRES_PASSWORD: Axx3l3rDB@Secure2024
+      POSTGRES_DB:       axxeler_crm
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-axxeler} -d ${DB_NAME:-axxeler_crm}"]
+      test: ["CMD-SHELL", "pg_isready -U axxeler -d axxeler_crm"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ── Redis ──────────────────────────────────────────────────────────────────
+  # ── Redis ─────────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -32,7 +37,8 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Backend (Express API + BullMQ Workers) ─────────────────────────────────
+  # ── Backend — Express API + BullMQ workers ────────────────────────────────────
+  # Runs migrations + seeds admin user automatically on first start
   backend:
     build:
       context: .
@@ -40,24 +46,24 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV:               production
-      PORT:                   4000
-      DATABASE_URL:           postgresql://${DB_USER:-axxeler}:${DB_PASSWORD}@db:5432/${DB_NAME:-axxeler_crm}
+      PORT:                   "4000"
+      DATABASE_URL:           postgresql://axxeler:Axx3l3rDB@Secure2024@db:5432/axxeler_crm
       REDIS_URL:              redis://redis:6379
-      JWT_ACCESS_SECRET:      ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET:     ${JWT_REFRESH_SECRET}
-      ACCESS_TOKEN_TTL:       ${ACCESS_TOKEN_TTL:-15m}
-      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
-      CLIENT_ORIGIN:          https://${DOMAIN}
+      JWT_ACCESS_SECRET:      "nTbLtxcRcsiUhf91NJ5L0sUJUNymhlt8qH6Gg28cNVwGEYO48JzUfKxHyYJIHo8a"
+      JWT_REFRESH_SECRET:     "NZGjr/Ed/dYxI003yqtkB/NsDR8bDX9v8oiE0Zk+byWa1eIC3SRm0i+KDKIh5EKX"
+      ACCESS_TOKEN_TTL:       15m
+      REFRESH_TOKEN_TTL_DAYS: "30"
+      CLIENT_ORIGIN:          https://crm.axxeler.in
       ENABLE_WORKERS:         "true"
-      RESEND_API_KEY:         ${RESEND_API_KEY:-}
-      EMAIL_FROM:             ${EMAIL_FROM:-Axxeler CRM <noreply@example.com>}
-      META_APP_ID:            ${META_APP_ID:-}
-      META_APP_SECRET:        ${META_APP_SECRET:-}
-      META_REDIRECT_URI:      https://${DOMAIN}/api/meta/callback
-      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
-      WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v20.0}
-      RAZORPAY_KEY_ID:        ${RAZORPAY_KEY_ID:-}
-      RAZORPAY_KEY_SECRET:    ${RAZORPAY_KEY_SECRET:-}
+      RESEND_API_KEY:         re_ZZ5QJUP4_JrDSd7dUJW7PaJ9CjHRyWMZT
+      EMAIL_FROM:             "Axxeler CRM <noreply@axxeler.in>"
+      META_REDIRECT_URI:      https://crm.axxeler.in/api/meta/callback
+      META_APP_ID:            ""
+      META_APP_SECRET:        ""
+      META_WEBHOOK_VERIFY_TOKEN: ""
+      WHATSAPP_GRAPH_VERSION: v20.0
+      RAZORPAY_KEY_ID:        ""
+      RAZORPAY_KEY_SECRET:    ""
       UPLOAD_DIR:             /app/uploads
     volumes:
       - uploads_data:/app/uploads
@@ -69,13 +75,11 @@ services:
       redis:
         condition: service_healthy
 
-  # ── Frontend (Nginx SPA + API proxy → Traefik) ─────────────────────────────
+  # ── Frontend — Nginx SPA + API proxy → registered with Traefik ───────────────
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-      args:
-        GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     restart: unless-stopped
     networks:
       - internal
@@ -86,17 +90,17 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=web"
 
-      # ── HTTPS router ──────────────────────────────────────────────────────
-      - "traefik.http.routers.axxeler.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.axxeler.entrypoints=websecure"
-      - "traefik.http.routers.axxeler.tls=true"
-      - "traefik.http.routers.axxeler.tls.certresolver=letsencrypt"
-      - "traefik.http.services.axxeler.loadbalancer.server.port=80"
+      # HTTPS — crm.axxeler.in
+      - "traefik.http.routers.axxeler-crm.rule=Host(`crm.axxeler.in`)"
+      - "traefik.http.routers.axxeler-crm.entrypoints=websecure"
+      - "traefik.http.routers.axxeler-crm.tls=true"
+      - "traefik.http.routers.axxeler-crm.tls.certresolver=letsencrypt"
+      - "traefik.http.services.axxeler-crm.loadbalancer.server.port=80"
 
-      # ── HTTP → HTTPS redirect ─────────────────────────────────────────────
-      - "traefik.http.routers.axxeler-http.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.axxeler-http.entrypoints=web"
-      - "traefik.http.routers.axxeler-http.middlewares=https-redirect@docker"
+      # HTTP → HTTPS redirect
+      - "traefik.http.routers.axxeler-crm-http.rule=Host(`crm.axxeler.in`)"
+      - "traefik.http.routers.axxeler-crm-http.entrypoints=web"
+      - "traefik.http.routers.axxeler-crm-http.middlewares=https-redirect@docker"
       - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
 
@@ -109,4 +113,4 @@ networks:
   internal:
     driver: bridge
   web:
-    external: true   # Traefik's shared network (already exists on your VPS)
+    external: true    # Traefik's shared network — already exists on the VPS

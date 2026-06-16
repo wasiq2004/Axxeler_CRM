@@ -14,7 +14,7 @@ const schema = z.object({
   CLIENT_ORIGIN: z.string().default('http://localhost:3000'),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default('Axxeler CRM <noreply@example.com>'),
+  EMAIL_FROM: z.string().default('Axxeler CRM <noreply@axxeler.in>'),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   META_APP_ID: z.string().optional(),
