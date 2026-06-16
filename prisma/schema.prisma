@@ -1,0 +1,426 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  manager
+  team_member
+}
+
+enum LeadStatus {
+  New
+  Contacted
+  Proposal
+  Negotiation
+  ClosedWon
+  Lost
+  Qualified
+}
+
+enum DealStage {
+  Prospecting
+  Qualification
+  Proposal
+  Negotiation
+  ClosedWon
+  ClosedLost
+}
+
+enum TaskStatus {
+  Pending
+  InProgress
+  Completed
+}
+
+enum TaskPriority {
+  High
+  Medium
+  Low
+}
+
+enum InvoiceStatus {
+  Paid
+  Due
+  Overdue
+  Draft
+}
+
+enum CampaignStatus {
+  draft
+  queued
+  scheduled
+  sending
+  completed
+  failed
+  cancelled
+  paused
+}
+
+enum RecipientStatus {
+  pending
+  sent
+  delivered
+  read
+  failed
+  bounced
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  avatar        String?
+  phone         String?
+  role          UserRole       @default(team_member)
+  permissions   Json           @default("{}")
+  refreshTokens RefreshToken[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  leads         Lead[]         @relation("LeadOwner")
+  tasks         Task[]         @relation("TaskAssignee")
+  deals         Deal[]         @relation("DealOwner")
+  leadNotes     LeadNote[]     @relation("NoteAuthor")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Lead {
+  id          String           @id @default(cuid())
+  firstName   String
+  lastName    String
+  company     String
+  email       String
+  phone       String
+  source      String
+  campaignId  String?
+  status      LeadStatus       @default(New)
+  ownerId     String?
+  score       Int              @default(50)
+  tags        String[]         @default([])
+  customData   Json             @default("{}")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  owner       User?            @relation("LeadOwner", fields: [ownerId], references: [id])
+  notes       LeadNote[]
+  activities  LeadActivity[]
+  attachments LeadAttachment[]
+}
+
+model LeadNote {
+  id        String   @id @default(cuid())
+  leadId    String
+  authorId  String?
+  content   String
+  createdAt DateTime @default(now())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  author    User?    @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+}
+
+model LeadActivity {
+  id         String   @id @default(cuid())
+  leadId     String
+  type       String
+  title      String
+  content    String?
+  authorName String?
+  createdAt  DateTime @default(now())
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model LeadAttachment {
+  id        String   @id @default(cuid())
+  leadId    String
+  name      String
+  url       String
+  size      Int
+  createdAt DateTime @default(now())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model Contact {
+  id              String   @id @default(cuid())
+  name            String?
+  phone           String
+  normalizedPhone String   @unique
+  groupName       String?
+  tags            String[] @default([])
+  customFields    Json     @default("{}")
+  source          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ContactGroup {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ImportJob {
+  id            String   @id @default(cuid())
+  fileName      String
+  status        String
+  totalRows     Int      @default(0)
+  importedRows  Int      @default(0)
+  duplicateRows Int      @default(0)
+  invalidRows   Int      @default(0)
+  groupId       String?
+  createdBy     String?
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  name      String
+  industry  String?
+  phone     String?
+  website   String?
+  ownerId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deals     Deal[]
+}
+
+model Deal {
+  id          String    @id @default(cuid())
+  name        String
+  accountId   String?
+  accountName String
+  stage       DealStage @default(Prospecting)
+  value       Decimal   @db.Decimal(14, 2)
+  closeDate   DateTime
+  ownerId     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  account     Account?  @relation(fields: [accountId], references: [id])
+  owner       User?     @relation("DealOwner", fields: [ownerId], references: [id])
+}
+
+model Task {
+  id           String       @id @default(cuid())
+  title        String
+  description  String?
+  status       TaskStatus   @default(Pending)
+  priority     TaskPriority @default(Medium)
+  dueDate      DateTime
+  assignedToId String?
+  relatedTo    Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  assignee     User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  clientName    String
+  clientCompany String
+  clientEmail   String
+  issueDate     DateTime
+  dueDate       DateTime
+  status        InvoiceStatus @default(Draft)
+  taxRate       Decimal       @db.Decimal(5, 2)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  items         InvoiceItem[]
+  payments      Payment[]
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int
+  price       Decimal @db.Decimal(14, 2)
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  invoiceId         String
+  provider          String
+  providerOrderId   String?
+  providerPaymentId String?
+  amount            Decimal  @db.Decimal(14, 2)
+  currency          String   @default("INR")
+  status            String
+  rawPayload         Json     @default("{}")
+  createdAt          DateTime @default(now())
+  invoice            Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id                String    @id @default(cuid())
+  type              String
+  title             String
+  message           String
+  relatedEntityId   String?
+  relatedEntityType String?
+  isRead            Boolean   @default(false)
+  scheduledFor      DateTime?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+}
+
+model CompanySetting {
+  id        String   @id @default("company")
+  name      String
+  address   String
+  phone     String
+  email     String
+  website   String
+  logo      String
+  currency  String   @default("USD")
+  updatedAt DateTime @updatedAt
+}
+
+model IntegrationConfig {
+  id        String   @id @default(cuid())
+  provider  String   @unique
+  config    Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WhatsAppAccount {
+  id                    String   @id @default(cuid())
+  accountIdFromProvider String   @unique
+  wabaId                String?
+  phoneNumberId         String?
+  name                  String
+  phoneNumber           String
+  tokenEncrypted        String
+  tokenExpiresAt        DateTime?
+  connectedBy           String?
+  connectedAt           DateTime @default(now())
+  status                String   @default("connected")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model WhatsAppTemplate {
+  id         String   @id @default(cuid())
+  accountId  String
+  providerId String?
+  name       String
+  namespace  String?
+  language   String
+  components Json
+  variables  String[] @default([])
+  status     String   @default("PENDING")
+  category   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Campaign {
+  id              String              @id @default(cuid())
+  name            String
+  senderAccountId String?
+  messageType     String
+  messageBody     String?
+  variables       String[]            @default([])
+  targetQuery     Json
+  scheduleAt      DateTime?
+  status          CampaignStatus      @default(draft)
+  createdBy       String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  recipients      CampaignRecipient[]
+}
+
+model CampaignRecipient {
+  id                  String          @id @default(cuid())
+  campaignId          String
+  contactId           String?
+  phone               String?
+  personalizedMessage String?
+  status              RecipientStatus @default(pending)
+  providerMessageId   String?
+  providerResponse    Json            @default("{}")
+  attemptedAt         DateTime?
+  deliveredAt         DateTime?
+  retries             Int             @default(0)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  campaign            Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model CampaignAuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  accountId   String?
+  campaignId  String?
+  importJobId String?
+  details     Json     @default("{}")
+  createdBy   String?
+  createdAt   DateTime @default(now())
+}
+
+model MetaConnection {
+  id           String   @id @default(cuid())
+  metaUserId   String   @unique
+  name         String
+  email        String?
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime?
+  isConnected  Boolean  @default(true)
+  lastSynced   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model MetaAdAccount {
+  id        String   @id
+  name      String
+  accountId String
+  currency  String
+  timezone  String
+  rawData   Json     @default("{}")
+  updatedAt DateTime @updatedAt
+}
+
+model MetaLead {
+  id           String   @id
+  formId       String?
+  adId         String?
+  adName       String?
+  campaignId   String?
+  campaignName String?
+  fieldData    Json
+  importedLeadId String?
+  createdTime  DateTime
+  syncedAt     DateTime @default(now())
+}
+
+model GoogleSyncConfig {
+  id              String    @id @default(cuid())
+  entityType      String
+  spreadsheetId   String
+  spreadsheetName String    @default("")
+  sheetName       String    @default("Sheet1")
+  columnMapping   Json      @default("{}")
+  webhookToken    String    @unique @default(cuid())
+  isActive        Boolean   @default(true)
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
