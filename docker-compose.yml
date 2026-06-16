@@ -10,6 +10,8 @@ services:
       POSTGRES_DB:       ${DB_NAME:-axxeler_crm}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-axxeler} -d ${DB_NAME:-axxeler_crm}"]
       interval: 10s
@@ -22,6 +24,8 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
+    networks:
+      - internal
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -35,35 +39,37 @@ services:
       dockerfile: Dockerfile.backend
     restart: unless-stopped
     environment:
-      NODE_ENV:            production
-      PORT:                4000
-      DATABASE_URL:        postgresql://${DB_USER:-axxeler}:${DB_PASSWORD}@db:5432/${DB_NAME:-axxeler_crm}
-      REDIS_URL:           redis://redis:6379
-      JWT_ACCESS_SECRET:   ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET:  ${JWT_REFRESH_SECRET}
-      ACCESS_TOKEN_TTL:    ${ACCESS_TOKEN_TTL:-15m}
+      NODE_ENV:               production
+      PORT:                   4000
+      DATABASE_URL:           postgresql://${DB_USER:-axxeler}:${DB_PASSWORD}@db:5432/${DB_NAME:-axxeler_crm}
+      REDIS_URL:              redis://redis:6379
+      JWT_ACCESS_SECRET:      ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET:     ${JWT_REFRESH_SECRET}
+      ACCESS_TOKEN_TTL:       ${ACCESS_TOKEN_TTL:-15m}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-30}
-      CLIENT_ORIGIN:       ${CLIENT_ORIGIN}
-      ENABLE_WORKERS:      "true"
-      RESEND_API_KEY:      ${RESEND_API_KEY:-}
-      EMAIL_FROM:          ${EMAIL_FROM:-Axxeler CRM <noreply@example.com>}
-      META_APP_ID:         ${META_APP_ID:-}
-      META_APP_SECRET:     ${META_APP_SECRET:-}
-      META_REDIRECT_URI:   ${META_REDIRECT_URI:-}
+      CLIENT_ORIGIN:          https://${DOMAIN}
+      ENABLE_WORKERS:         "true"
+      RESEND_API_KEY:         ${RESEND_API_KEY:-}
+      EMAIL_FROM:             ${EMAIL_FROM:-Axxeler CRM <noreply@example.com>}
+      META_APP_ID:            ${META_APP_ID:-}
+      META_APP_SECRET:        ${META_APP_SECRET:-}
+      META_REDIRECT_URI:      https://${DOMAIN}/api/meta/callback
       META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
       WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v20.0}
-      RAZORPAY_KEY_ID:     ${RAZORPAY_KEY_ID:-}
-      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
-      UPLOAD_DIR:          /app/uploads
+      RAZORPAY_KEY_ID:        ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET:    ${RAZORPAY_KEY_SECRET:-}
+      UPLOAD_DIR:             /app/uploads
     volumes:
       - uploads_data:/app/uploads
+    networks:
+      - internal
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-  # ── Frontend (Nginx serving React build + API proxy) ───────────────────────
+  # ── Frontend (Nginx SPA + API proxy → Traefik) ─────────────────────────────
   frontend:
     build:
       context: .
@@ -71,12 +77,36 @@ services:
       args:
         GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     restart: unless-stopped
-    ports:
-      - "3000:80"
+    networks:
+      - internal
+      - web
     depends_on:
       - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+
+      # ── HTTPS router ──────────────────────────────────────────────────────
+      - "traefik.http.routers.axxeler.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.axxeler.entrypoints=websecure"
+      - "traefik.http.routers.axxeler.tls=true"
+      - "traefik.http.routers.axxeler.tls.certresolver=letsencrypt"
+      - "traefik.http.services.axxeler.loadbalancer.server.port=80"
+
+      # ── HTTP → HTTPS redirect ─────────────────────────────────────────────
+      - "traefik.http.routers.axxeler-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.axxeler-http.entrypoints=web"
+      - "traefik.http.routers.axxeler-http.middlewares=https-redirect@docker"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
 
 volumes:
   postgres_data:
   redis_data:
   uploads_data:
+
+networks:
+  internal:
+    driver: bridge
+  web:
+    external: true   # Traefik's shared network (already exists on your VPS)

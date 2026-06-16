@@ -177,7 +177,7 @@ const LoginPage: React.FC = () => {
 
                 <div className="grid grid-cols-3 gap-2">
                   <button 
-                    onClick={() => { setEmail('admin@axxeler.com'); setPassword('admin123'); }}
+                    onClick={() => { setEmail('axxeler@gmail.com'); setPassword('axxeler1234'); }}
                     className="flex flex-col items-center justify-center py-3 bg-gray-50 border border-transparent rounded-2xl hover:bg-blue-50 hover:border-blue-200 transition-all group"
                   >
                     <ShieldCheck className="w-4 h-4 text-gray-400 group-hover:text-blue-600 mb-1" />
