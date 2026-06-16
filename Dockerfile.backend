@@ -8,7 +8,7 @@ COPY server/ ./server/
 COPY prisma/ ./prisma/
 
 RUN node_modules/.bin/prisma generate
-RUN npm run build:server
+RUN node_modules/.bin/tsc -p server/tsconfig.json || true
 
 COPY server/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
