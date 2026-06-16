@@ -1,0 +1,44 @@
+name: Build & Push Images
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE:  ghcr.io/${{ github.repository_owner }}/axxeler-crm-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/axxeler-crm-frontend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write        # needed to push to ghcr.io
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # built-in, no setup needed
+
+      - name: Build & push backend
+        uses: docker/build-push-action@v5
+        with:
+          context:    .
+          file:       Dockerfile.backend
+          push:       true
+          tags:       ${{ env.BACKEND_IMAGE }}:latest
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context:    .
+          file:       Dockerfile.frontend
+          push:       true
+          tags:       ${{ env.FRONTEND_IMAGE }}:latest

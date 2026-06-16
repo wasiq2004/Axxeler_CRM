@@ -1,6 +1,8 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Axxeler CRM — Production Docker Compose
-#  Live URL : https://crm.axxeler.in
+#  Live URL  : https://crm.axxeler.in
+#  Images    : ghcr.io/wasiq2004/axxeler-crm-*:latest  (built by GitHub Actions)
+#  Auto-deploy: Watchtower checks for new images every 5 min after every git push
 # ═══════════════════════════════════════════════════════════════════════════════
 
 services:
@@ -38,11 +40,8 @@ services:
       retries: 5
 
   # ── Backend — Express API + BullMQ workers ────────────────────────────────────
-  # Runs migrations + seeds admin user automatically on first start
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile.backend
+    image: ghcr.io/wasiq2004/axxeler-crm-backend:latest
     restart: unless-stopped
     environment:
       NODE_ENV:               production
@@ -75,11 +74,9 @@ services:
       redis:
         condition: service_healthy
 
-  # ── Frontend — Nginx SPA + API proxy → registered with Traefik ───────────────
+  # ── Frontend — Nginx SPA + API proxy → Traefik ───────────────────────────────
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
+    image: ghcr.io/wasiq2004/axxeler-crm-frontend:latest
     restart: unless-stopped
     networks:
       - internal
@@ -89,20 +86,29 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=web"
-
-      # HTTPS — crm.axxeler.in
       - "traefik.http.routers.axxeler-crm.rule=Host(`crm.axxeler.in`)"
       - "traefik.http.routers.axxeler-crm.entrypoints=websecure"
       - "traefik.http.routers.axxeler-crm.tls=true"
       - "traefik.http.routers.axxeler-crm.tls.certresolver=letsencrypt"
       - "traefik.http.services.axxeler-crm.loadbalancer.server.port=80"
-
-      # HTTP → HTTPS redirect
       - "traefik.http.routers.axxeler-crm-http.rule=Host(`crm.axxeler.in`)"
       - "traefik.http.routers.axxeler-crm-http.entrypoints=web"
       - "traefik.http.routers.axxeler-crm-http.middlewares=https-redirect@docker"
       - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
+
+  # ── Watchtower — auto-pulls new images when you push code ─────────────────────
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_POLL_INTERVAL: "300"      # check every 5 minutes
+      WATCHTOWER_CLEANUP:       "true"     # delete old images automatically
+      WATCHTOWER_INCLUDE_STOPPED: "false"
+    networks:
+      - internal
 
 volumes:
   postgres_data:
@@ -113,4 +119,4 @@ networks:
   internal:
     driver: bridge
   web:
-    external: true    # Traefik's shared network — already exists on the VPS
+    external: true
