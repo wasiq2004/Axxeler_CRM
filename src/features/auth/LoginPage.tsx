@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Lock, Mail, LayoutDashboard, AlertCircle, ChevronRight, ShieldCheck, Chrome, Sparkles, Globe, Zap, User, Users } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, AlertCircle, ChevronRight, ShieldCheck, Sparkles, Globe, Zap } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Button from '@/components/ui/Button';
@@ -169,37 +169,6 @@ const LoginPage: React.FC = () => {
                 </div>
               </form>
 
-              <div className="mt-8 animate-fadeIn delay-500">
-                <div className="relative flex items-center justify-center mb-6">
-                  <div className="absolute inset-0 flex items-center px-1"><div className="w-full border-t border-gray-100"></div></div>
-                  <span className="relative bg-white px-4 text-[9px] font-black text-gray-300 uppercase tracking-[0.4em]">Test Roles</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <button 
-                    onClick={() => { setEmail('axxeler@gmail.com'); setPassword('axxeler1234'); }}
-                    className="flex flex-col items-center justify-center py-3 bg-gray-50 border border-transparent rounded-2xl hover:bg-blue-50 hover:border-blue-200 transition-all group"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-gray-400 group-hover:text-blue-600 mb-1" />
-                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-tighter group-hover:text-blue-900">Admin</span>
-                  </button>
-                  <button 
-                    onClick={() => { setEmail('manager@axxeler.com'); setPassword('manager123'); }}
-                    className="flex flex-col items-center justify-center py-3 bg-gray-50 border border-transparent rounded-2xl hover:bg-blue-50 hover:border-blue-200 transition-all group"
-                  >
-                    <User className="w-4 h-4 text-gray-400 group-hover:text-blue-600 mb-1" />
-                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-tighter group-hover:text-blue-900">Manager</span>
-                  </button>
-                  <button 
-                    onClick={() => { setEmail('team@axxeler.com'); setPassword('team123'); }}
-                    className="flex flex-col items-center justify-center py-3 bg-gray-50 border border-transparent rounded-2xl hover:bg-blue-50 hover:border-blue-200 transition-all group"
-                  >
-                    <Users className="w-4 h-4 text-gray-400 group-hover:text-blue-600 mb-1" />
-                    <span className="text-[8px] font-black text-gray-500 uppercase tracking-tighter group-hover:text-blue-900">Team</span>
-                  </button>
-                </div>
-              </div>
-              
               <div className="mt-8 text-center pt-6 border-t border-gray-50 animate-fadeIn delay-700">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">
                   Don't have an account? <Link to="/signup" className="text-blue-600 hover:underline underline-offset-4 decoration-2">Create Account</Link>
