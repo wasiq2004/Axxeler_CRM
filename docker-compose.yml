@@ -89,7 +89,7 @@ services:
       - "traefik.http.routers.axxeler-crm.rule=Host(`crm.axxeler.in`)"
       - "traefik.http.routers.axxeler-crm.entrypoints=websecure"
       - "traefik.http.routers.axxeler-crm.tls=true"
-      - "traefik.http.routers.axxeler-crm.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.axxeler-crm.tls.certresolver=mytlschallenge"
       - "traefik.http.services.axxeler-crm.loadbalancer.server.port=80"
       - "traefik.http.routers.axxeler-crm-http.rule=Host(`crm.axxeler.in`)"
       - "traefik.http.routers.axxeler-crm-http.entrypoints=web"
