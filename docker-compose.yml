@@ -106,6 +106,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
+      DOCKER_API_VERSION:       "1.44"
       WATCHTOWER_POLL_INTERVAL: "300"      # check every 5 minutes
       WATCHTOWER_CLEANUP:       "true"     # delete old images automatically
       WATCHTOWER_INCLUDE_STOPPED: "false"
