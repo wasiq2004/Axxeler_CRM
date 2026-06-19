@@ -1,8 +1,15 @@
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Axxeler CRM — Production Docker Compose
-#  Live URL  : https://crm.axxeler.in
-#  Images    : ghcr.io/wasiq2004/axxeler-crm-*:latest  (built by GitHub Actions)
-#  Auto-deploy: Watchtower checks for new images every 5 min after every git push
+#  Axxeler CRM — Production Docker Compose (Dokploy)
+#  Live URL : https://crm.axxeler.in
+#
+#  Deployed via Dokploy as a "Docker Compose" service (Build from source).
+#  Dokploy builds the images from the Dockerfiles in this repo on each deploy,
+#  and routes traffic through ITS OWN Traefik on the external `dokploy-network`.
+#
+#  Requirements on the Dokploy host (provided by Dokploy itself):
+#    • external network `dokploy-network` must exist (it does, Dokploy creates it)
+#    • Traefik cert resolver named `letsencrypt` (Dokploy default)
+#    • DNS: crm.axxeler.in → VPS public IP, ports 80/443 open
 # ═══════════════════════════════════════════════════════════════════════════════
 
 services:
@@ -41,12 +48,16 @@ services:
 
   # ── Backend — Express API + BullMQ workers ────────────────────────────────────
   backend:
-    image: ghcr.io/wasiq2004/axxeler-crm-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
     restart: unless-stopped
     environment:
       NODE_ENV:               production
       PORT:                   "4000"
-      DATABASE_URL:           postgresql://axxeler:Axx3l3rDB@Secure2024@db:5432/axxeler_crm
+      # NOTE: the '@' in the password is URL-encoded as %40 so the connection
+      # string parses unambiguously.
+      DATABASE_URL:           postgresql://axxeler:Axx3l3rDB%40Secure2024@db:5432/axxeler_crm
       REDIS_URL:              redis://redis:6379
       JWT_ACCESS_SECRET:      "nTbLtxcRcsiUhf91NJ5L0sUJUNymhlt8qH6Gg28cNVwGEYO48JzUfKxHyYJIHo8a"
       JWT_REFRESH_SECRET:     "NZGjr/Ed/dYxI003yqtkB/NsDR8bDX9v8oiE0Zk+byWa1eIC3SRm0i+KDKIh5EKX"
@@ -80,44 +91,32 @@ services:
       redis:
         condition: service_healthy
 
-  # ── Frontend — Nginx SPA + API proxy → Traefik ───────────────────────────────
+  # ── Frontend — Nginx SPA + /api proxy → backend, exposed via Dokploy Traefik ──
   frontend:
-    image: ghcr.io/wasiq2004/axxeler-crm-frontend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
     restart: unless-stopped
-    ports:
-      - "8080:80"
     networks:
-      - internal
-      - web
+      - internal          # to reach the backend container
+      - dokploy-network   # so Dokploy's Traefik can route to it
     depends_on:
       - backend
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=web"
+      - "traefik.docker.network=dokploy-network"
+      # HTTPS router
       - "traefik.http.routers.axxeler-crm.rule=Host(`crm.axxeler.in`)"
       - "traefik.http.routers.axxeler-crm.entrypoints=websecure"
       - "traefik.http.routers.axxeler-crm.tls=true"
-      - "traefik.http.routers.axxeler-crm.tls.certresolver=mytlschallenge"
+      - "traefik.http.routers.axxeler-crm.tls.certresolver=letsencrypt"
       - "traefik.http.services.axxeler-crm.loadbalancer.server.port=80"
+      # HTTP → HTTPS redirect
       - "traefik.http.routers.axxeler-crm-http.rule=Host(`crm.axxeler.in`)"
       - "traefik.http.routers.axxeler-crm-http.entrypoints=web"
-      - "traefik.http.routers.axxeler-crm-http.middlewares=https-redirect@docker"
-      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
-
-  # ── Watchtower — auto-pulls new images when you push code ─────────────────────
-  watchtower:
-    image: containrrr/watchtower
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      DOCKER_API_VERSION:       "1.40"     # daemon rejects clients below 1.40; 1.40 is its stated minimum, so always accepted
-      WATCHTOWER_POLL_INTERVAL: "300"      # check every 5 minutes
-      WATCHTOWER_CLEANUP:       "true"     # delete old images automatically
-      WATCHTOWER_INCLUDE_STOPPED: "false"
-    networks:
-      - internal
+      - "traefik.http.routers.axxeler-crm-http.middlewares=axxeler-https-redirect"
+      - "traefik.http.middlewares.axxeler-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.axxeler-https-redirect.redirectscheme.permanent=true"
 
 volumes:
   postgres_data:
@@ -125,7 +124,9 @@ volumes:
   uploads_data:
 
 networks:
+  # Private network for db / redis / backend / frontend internal traffic.
   internal:
     driver: bridge
-  web:
+  # Dokploy's shared Traefik network — created and managed by Dokploy.
+  dokploy-network:
     external: true
