@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Camera, Upload } from 'lucide-react';
 import { useTeam, TeamMember, TeamMemberRole, TeamMemberStatus } from '../../../contexts/TeamContext';
+import { useApi } from '../../../contexts/ApiContext';
 
 interface EditTeamMemberModalProps {
     isOpen: boolean;
@@ -21,6 +22,8 @@ const DEFAULT_PERMISSIONS = {
 
 const EditTeamMemberModal: React.FC<EditTeamMemberModalProps> = ({ isOpen, onClose, memberId }) => {
     const { getTeamMemberById, updateTeamMember } = useTeam();
+    const { crmApi } = useApi();
+    const [uploading, setUploading] = useState(false);
     const [formData, setFormData] = useState<Partial<TeamMember>>({
         name: '',
         email: '',
@@ -39,14 +42,17 @@ const EditTeamMemberModal: React.FC<EditTeamMemberModalProps> = ({ isOpen, onClo
         }
     }, [memberId, isOpen, getTeamMemberById]);
 
-    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setFormData((prev) => ({ ...prev, avatar: reader.result as string }));
-            };
-            reader.readAsDataURL(file);
+        if (!file) return;
+        setUploading(true);
+        try {
+            const res = await crmApi.uploadImage(file);
+            setFormData((prev) => ({ ...prev, avatar: res.data.url }));
+        } catch (err: any) {
+            alert(err?.message || 'Failed to upload image. Please try a smaller image (max 5 MB).');
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -138,6 +144,7 @@ const EditTeamMemberModal: React.FC<EditTeamMemberModalProps> = ({ isOpen, onClo
                                     className="hidden"
                                     accept="image/*"
                                     onChange={handlePhotoChange}
+                                    disabled={uploading}
                                 />
                             </label>
                         </div>

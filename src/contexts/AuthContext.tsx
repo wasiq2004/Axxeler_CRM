@@ -104,11 +104,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_email');
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
     crmApi.setToken(null);
   };
+
+  // When the API layer exhausts token refresh (refresh token expired/revoked),
+  // it dispatches `auth:unauthorized` — clear auth state so the user is sent to login.
+  useEffect(() => {
+    const handler = () => logout();
+    window.addEventListener('auth:unauthorized', handler);
+    return () => window.removeEventListener('auth:unauthorized', handler);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, token, isAuthenticated, isLoading, loading: isLoading, error, login, logout, signup }}>

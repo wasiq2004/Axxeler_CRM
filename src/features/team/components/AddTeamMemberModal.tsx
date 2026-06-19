@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Camera, Upload } from 'lucide-react';
 import { useTeam, TeamMemberRole, TeamMemberStatus } from '../../../contexts/TeamContext';
+import { useApi } from '../../../contexts/ApiContext';
 
 interface AddTeamMemberModalProps {
     isOpen: boolean;
@@ -20,6 +21,8 @@ const DEFAULT_PERMISSIONS = {
 
 const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({ isOpen, onClose }) => {
     const { addTeamMember } = useTeam();
+    const { crmApi } = useApi();
+    const [uploading, setUploading] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -31,14 +34,17 @@ const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({ isOpen, onClose
         permissions: DEFAULT_PERMISSIONS,
     });
 
-    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setFormData((prev) => ({ ...prev, avatar: reader.result as string }));
-            };
-            reader.readAsDataURL(file);
+        if (!file) return;
+        setUploading(true);
+        try {
+            const res = await crmApi.uploadImage(file);
+            setFormData((prev) => ({ ...prev, avatar: res.data.url }));
+        } catch (err: any) {
+            alert(err?.message || 'Failed to upload image. Please try a smaller image (max 5 MB).');
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -148,6 +154,7 @@ const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({ isOpen, onClose
                                     className="hidden"
                                     accept="image/*"
                                     onChange={handlePhotoChange}
+                                    disabled={uploading}
                                 />
                             </label>
                         </div>

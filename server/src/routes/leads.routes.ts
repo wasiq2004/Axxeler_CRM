@@ -177,14 +177,16 @@ router.post(
       createContact: z.boolean().default(true),
     }).parse(req.body);
 
-    // Create contact (skip if one with same phone already exists)
-    let contact = null;
-    if (body.createContact) {
-      const phone = lead.phone || '';
-      const normalizedPhone = phone.startsWith('+') ? phone : phone ? `+${phone}` : `+${lead.id}`;
-      const existing = await prisma.contact.findUnique({ where: { normalizedPhone } });
-      if (!existing) {
-        contact = await prisma.contact.create({
+    // All-or-nothing: contact + deal + lead status + activity must commit together,
+    // otherwise a failure (e.g. bad enum) leaves orphaned contacts/deals behind.
+    const { contact, deal } = await prisma.$transaction(async (tx) => {
+      // Create contact (skip if one with same phone already exists)
+      let contact = null;
+      if (body.createContact) {
+        const phone = lead.phone || '';
+        const normalizedPhone = phone.startsWith('+') ? phone : phone ? `+${phone}` : `+${lead.id}`;
+        const existing = await tx.contact.findUnique({ where: { normalizedPhone } });
+        contact = existing ?? await tx.contact.create({
           data: {
             name: `${lead.firstName} ${lead.lastName}`.trim(),
             phone,
@@ -194,38 +196,33 @@ router.post(
             customFields: { company: lead.company || '', email: lead.email || '' },
           },
         });
-      } else {
-        contact = existing;
       }
-    }
 
-    // Create deal
-    const deal = await prisma.deal.create({
-      data: {
-        name: body.dealName,
-        accountName: lead.company || `${lead.firstName} ${lead.lastName}`,
-        stage: body.dealStage as any,
-        value: body.dealValue,
-        closeDate: new Date(body.closeDate),
-        ownerId: lead.ownerId || req.user!.id,
-      },
-    });
+      const deal = await tx.deal.create({
+        data: {
+          name: body.dealName,
+          accountName: lead.company || `${lead.firstName} ${lead.lastName}`,
+          stage: (normalizeEnum(body.dealStage) || 'Qualification') as any,
+          value: body.dealValue,
+          closeDate: new Date(body.closeDate),
+          ownerId: lead.ownerId || req.user!.id,
+        },
+      });
 
-    // Mark lead as Closed - Won
-    await prisma.lead.update({
-      where: { id: lead.id },
-      data: { status: 'Closed_Won' as any },
-    });
+      // Mark the lead as won (schema enum is `ClosedWon`, not `Closed_Won`)
+      await tx.lead.update({ where: { id: lead.id }, data: { status: 'ClosedWon' } });
 
-    // Log activity
-    await prisma.leadActivity.create({
-      data: {
-        leadId: lead.id,
-        type: 'Note',
-        title: 'Lead converted',
-        content: `Converted to deal "${body.dealName}"${contact ? ' and contact created' : ''}.`,
-        authorName: req.user!.name,
-      },
+      await tx.leadActivity.create({
+        data: {
+          leadId: lead.id,
+          type: 'Note',
+          title: 'Lead converted',
+          content: `Converted to deal "${body.dealName}"${contact ? ' and contact created' : ''}.`,
+          authorName: req.user!.name,
+        },
+      });
+
+      return { contact, deal };
     });
 
     res.status(201).json({ success: true, data: { contact, deal } });

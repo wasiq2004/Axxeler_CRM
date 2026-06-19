@@ -7,6 +7,7 @@ import { useCurrency } from '../../contexts/CurrencyContext';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '@/components/ui/Button';
 import GoogleSheetsTab from './components/GoogleSheetsTab';
+import { getServerOrigin } from '@/api/serverOrigin';
 
 const SettingsPage: React.FC = () => {
     const { updateUser } = useUsers();
@@ -59,7 +60,8 @@ const SettingsPage: React.FC = () => {
     const tabs = allTabs.filter(tab => {
         if (!user) return false;
         if (user.role === 'admin') return true;
-        if (user.role === 'manager') return tab.id !== 'Company';
+        // Company branding and Integration credentials are admin-only.
+        if (user.role === 'manager') return tab.id !== 'Company' && tab.id !== 'Integrations';
         if (user.role === 'team_member') return tab.id === 'Profile';
         return false;
     });
@@ -154,21 +156,25 @@ const SettingsPage: React.FC = () => {
 };
 
 const ProfileTab: React.FC<{ userData: any; setUserData: any; onSave: () => void }> = ({ userData, setUserData, onSave }) => {
+    const { crmApi } = useApi();
+    const [uploading, setUploading] = useState(false);
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setUserData((prev: any) => ({ ...prev, [name]: value }));
     };
 
-    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    setUserData((prev: any) => ({ ...prev, avatar: event.target?.result as string }));
-                }
-            };
-            reader.readAsDataURL(file);
+    const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploading(true);
+        try {
+            const res = await crmApi.uploadImage(file);
+            setUserData((prev: any) => ({ ...prev, avatar: res.data.url }));
+        } catch (err: any) {
+            alert(err?.message || 'Failed to upload image. Please try a smaller image (max 5 MB).');
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -186,15 +192,26 @@ const ProfileTab: React.FC<{ userData: any; setUserData: any; onSave: () => void
 
             <div className="flex flex-col md:flex-row gap-10">
                 <div className="flex-shrink-0 text-center">
-                    <div className="relative group mx-auto">
-                        <img
-                            src={userData.avatar}
-                            alt={userData.name}
-                            className="w-32 h-32 rounded-3xl object-cover border-4 border-gray-50 shadow-md ring-1 ring-gray-100 transition-transform group-hover:scale-[1.02]"
-                        />
+                    <div className="relative group mx-auto w-32 h-32">
+                        {userData.avatar ? (
+                            <img
+                                src={userData.avatar}
+                                alt={userData.name}
+                                className="w-32 h-32 rounded-3xl object-cover border-4 border-gray-50 shadow-md ring-1 ring-gray-100 transition-transform group-hover:scale-[1.02]"
+                            />
+                        ) : (
+                            <div className="w-32 h-32 rounded-3xl bg-primary/10 border-4 border-gray-50 shadow-md ring-1 ring-gray-100 flex items-center justify-center text-3xl font-bold text-primary">
+                                {(userData.name || '?').trim().charAt(0).toUpperCase()}
+                            </div>
+                        )}
+                        {uploading && (
+                            <div className="absolute inset-0 rounded-3xl bg-black/40 flex items-center justify-center">
+                                <Loader className="w-6 h-6 text-white animate-spin" />
+                            </div>
+                        )}
                         <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-white shadow-xl rounded-xl border border-gray-50 flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
                             <Camera className="w-5 h-5 text-gray-600" />
-                            <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                            <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} disabled={uploading} />
                         </label>
                     </div>
                 </div>
@@ -336,21 +353,25 @@ const CompanyTab: React.FC<{
     setCurrencyByCode: (code: string) => void;
     availableCurrencies: any[];
 }> = ({ companyData, setCompanyData, onSave, currency, setCurrencyByCode, availableCurrencies }) => {
+    const { crmApi } = useApi();
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setCompanyData((prev: any) => ({ ...prev, [name]: value }));
     };
 
-    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    setCompanyData((prev: any) => ({ ...prev, logo: event.target?.result as string }));
-                }
-            };
-            reader.readAsDataURL(file);
+    const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingLogo(true);
+        try {
+            const res = await crmApi.uploadImage(file);
+            setCompanyData((prev: any) => ({ ...prev, logo: res.data.url }));
+        } catch (err: any) {
+            alert(err?.message || 'Failed to upload logo. Please try a smaller image (max 5 MB).');
+        } finally {
+            setUploadingLogo(false);
         }
     };
 
@@ -377,8 +398,8 @@ const CompanyTab: React.FC<{
                                 className="w-full max-w-[150px] h-12 object-contain mb-4 transition-transform group-hover:scale-105"
                             />
                             <label className="px-4 py-2 bg-white shadow-sm border border-gray-100 text-primary text-xs font-bold rounded-lg cursor-pointer hover:shadow-md transition-all">
-                                Replace Logo
-                                <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                                {uploadingLogo ? 'Uploading…' : 'Replace Logo'}
+                                <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} disabled={uploadingLogo} />
                             </label>
                         </div>
                     </div>
@@ -512,7 +533,7 @@ const MetaIntegrationSection: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-    const defaultRedirectUri = `${window.location.protocol}//${window.location.hostname}:4000/api/meta/callback`;
+    const defaultRedirectUri = `${getServerOrigin()}/api/meta/callback`;
 
     useEffect(() => {
         (async () => {

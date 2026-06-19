@@ -92,16 +92,18 @@ router.post(
   '/webhook',
   asyncHandler(async (req, res) => {
     const creds = await _getMetaCreds();
-    // Validate signature if app secret is configured
+    // Validate signature if an app secret is configured. The signature is HMAC'd
+    // over the RAW request body (re-serializing req.body would not match Meta's bytes),
+    // and is REQUIRED — a missing header is rejected rather than silently accepted.
     if (creds.appSecret) {
       const signature = req.headers['x-hub-signature-256'] as string | undefined;
-      if (signature) {
-        const hmac = crypto.createHmac('sha256', creds.appSecret);
-        hmac.update(JSON.stringify(req.body));
-        const expected = `sha256=${hmac.digest('hex')}`;
-        if (signature !== expected) {
-          return res.sendStatus(403);
-        }
+      const rawBody: Buffer | undefined = (req as any).rawBody;
+      if (!signature || !rawBody) return res.sendStatus(403);
+      const expected = `sha256=${crypto.createHmac('sha256', creds.appSecret).update(rawBody).digest('hex')}`;
+      const sigBuf = Buffer.from(signature);
+      const expBuf = Buffer.from(expected);
+      if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        return res.sendStatus(403);
       }
     }
 

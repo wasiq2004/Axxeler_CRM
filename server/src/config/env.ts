@@ -17,6 +17,7 @@ const schema = z.object({
   EMAIL_FROM: z.string().default('Axxeler CRM <noreply@axxeler.in>'),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_REDIRECT_URI: z.string().optional(),

@@ -44,6 +44,13 @@ class CrmApi {
     return this.api.put('/users/profile', data);
   }
 
+  // Upload an image (avatar, company logo) and get back its public URL
+  async uploadImage(file: File): Promise<{ success: boolean; data: { url: string } }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.api.postForm('/uploads', formData);
+  }
+
   async getUsers() {
     return this.api.get('/users');
   }

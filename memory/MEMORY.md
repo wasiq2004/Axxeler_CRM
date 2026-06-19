@@ -1,0 +1,1 @@
+- [Deployment & integrations](deployment-and-integrations.md) — prod topology (crm.axxeler.in, Watchtower auto-deploy), how Meta/Google get creds (DB via Settings UI), uploads served at /api/uploads, nginx ^~ /api/ rule

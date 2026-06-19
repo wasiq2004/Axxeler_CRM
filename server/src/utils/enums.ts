@@ -10,11 +10,14 @@ const toUi: Record<string, string> = {
   InProgress: 'In Progress',
 };
 
-export const normalizeEnum = (value: unknown) =>
-  typeof value === 'string' ? toDb[value] || value : value;
+// UI/display value -> DB enum value (e.g. "Closed - Won" -> "ClosedWon").
+export const normalizeEnum = (value: unknown): string =>
+  typeof value === 'string' ? toDb[value] || value : String(value ?? '');
 
-export const presentEnum = (value: unknown) =>
-  typeof value === 'string' ? toUi[value] || value : value;
+// DB enum value -> UI/display value. Always returns a string so callers can
+// safely call string methods (e.g. .toUpperCase()) on the result.
+export const presentEnum = (value: unknown): string =>
+  typeof value === 'string' ? toUi[value] || value : String(value ?? '');
 
 export const mapEnumsForDb = <T extends Record<string, unknown>>(data: T, fields: string[]) => {
   const next = { ...data };

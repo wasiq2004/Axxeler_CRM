@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, AlertCircle, Loader2, Link2, Link2Off, RefreshCw, Table2, ChevronDown, Copy, Check, ExternalLink } from 'lucide-react';
 import { useApi } from '@/contexts/ApiContext';
 import Button from '@/components/ui/Button';
+import { getServerOrigin } from '@/api/serverOrigin';
 
 interface GoogleConnection {
   connected: boolean;
@@ -287,7 +288,7 @@ const GoogleSheetsTab: React.FC = () => {
   const [showAppCreds, setShowAppCreds] = useState(false);
   const [savingCreds, setSavingCreds] = useState(false);
 
-  const serverOrigin = window.location.origin.replace(':3000', ':4000');
+  const serverOrigin = getServerOrigin();
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });

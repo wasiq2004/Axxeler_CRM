@@ -1,0 +1,102 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Axxeler CRM — LOCAL Docker Compose (build everything, run with one command)
+#
+#  Usage:
+#      docker compose -f docker-compose.local.yml up --build
+#
+#  Then open:  http://localhost:3000
+#
+#  This file BUILDS the images from the local Dockerfiles (no ghcr.io pulls,
+#  no Traefik, no Watchtower). It is fully self-contained: Postgres + Redis +
+#  backend (API + workers) + frontend (Nginx SPA that proxies /api → backend).
+#
+#  Default login is created by the seed script (prisma/seed.ts) on first boot.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     axxeler
+      POSTGRES_PASSWORD: axxeler
+      POSTGRES_DB:       axxeler_crm
+    ports:
+      - "5433:5432"            # host 5433 → container 5432 (5432 is used by another local Postgres)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U axxeler -d axxeler_crm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ─────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend — Express API + BullMQ workers ────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV:               development
+      PORT:                   "4000"
+      DATABASE_URL:           postgresql://axxeler:axxeler@db:5432/axxeler_crm
+      REDIS_URL:              redis://redis:6379
+      JWT_ACCESS_SECRET:      "local-dev-access-secret-change-me"
+      JWT_REFRESH_SECRET:     "local-dev-refresh-secret-change-me"
+      ACCESS_TOKEN_TTL:       15m
+      REFRESH_TOKEN_TTL_DAYS: "30"
+      CLIENT_ORIGIN:          http://localhost:3000
+      ENABLE_WORKERS:         "true"
+      EMAIL_FROM:             "Axxeler CRM <noreply@localhost>"
+      WHATSAPP_GRAPH_VERSION: v20.0
+      UPLOAD_DIR:             /app/uploads
+      # Integration keys (Meta/Google/Razorpay/Resend) can stay blank locally —
+      # set them via Settings → Integrations in the running app if you need them.
+      RESEND_API_KEY:         ""
+      META_APP_ID:            ""
+      META_APP_SECRET:        ""
+      META_WEBHOOK_VERIFY_TOKEN: ""
+      META_REDIRECT_URI:      http://localhost:3000/api/meta/callback
+      GOOGLE_CLIENT_ID:       ""
+      GOOGLE_CLIENT_SECRET:   ""
+      GOOGLE_REDIRECT_URI:    http://localhost:3000/api/google/callback
+      RAZORPAY_KEY_ID:        ""
+      RAZORPAY_KEY_SECRET:    ""
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Frontend — Nginx serving the built SPA + /api proxy → backend ─────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"              # open http://localhost:3000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:

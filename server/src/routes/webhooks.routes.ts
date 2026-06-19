@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import { env } from '../config/env.js';
 import { prisma } from '../db/prisma.js';
@@ -5,29 +6,33 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 
-router.get('/meta', (req, res) => {
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-  if (mode === 'subscribe' && token === env.META_WEBHOOK_VERIFY_TOKEN) {
-    res.status(200).send(challenge);
-    return;
-  }
-  res.sendStatus(403);
-});
-
-router.post(
-  '/meta',
-  asyncHandler(async (req, res) => {
-    await prisma.campaignAuditLog.create({ data: { action: 'meta_webhook', details: req.body, createdBy: 'system' } });
-    res.sendStatus(200);
-  }),
-);
+// Note: the canonical Meta lead webhook lives at /api/meta/webhook (meta.routes.ts),
+// which verifies the X-Hub-Signature-256 HMAC and imports leads. This file only
+// hosts the Razorpay payment webhook.
 
 router.post(
   '/razorpay',
   asyncHandler(async (req, res) => {
+    const secret = env.RAZORPAY_WEBHOOK_SECRET;
+    const signature = req.headers['x-razorpay-signature'] as string | undefined;
+    const rawBody: Buffer | undefined = (req as any).rawBody;
+
+    // Refuse to mutate payment/invoice state unless the signature is configured and valid.
+    if (!secret) {
+      console.error('[razorpay-webhook] RAZORPAY_WEBHOOK_SECRET not configured — rejecting webhook');
+      return res.sendStatus(503);
+    }
+    if (!signature || !rawBody) return res.sendStatus(400);
+
+    const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+    const sigBuf = Buffer.from(signature);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      return res.sendStatus(403);
+    }
+
     await prisma.campaignAuditLog.create({ data: { action: 'razorpay_webhook', details: req.body, createdBy: 'system' } });
+
     const paymentEntity = req.body?.payload?.payment?.entity;
     if (paymentEntity?.order_id && paymentEntity?.status === 'captured') {
       const payment = await prisma.payment.findFirst({ where: { providerOrderId: paymentEntity.order_id } });

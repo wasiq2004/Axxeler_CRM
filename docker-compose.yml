@@ -56,10 +56,16 @@ services:
       ENABLE_WORKERS:         "true"
       RESEND_API_KEY:         re_ZZ5QJUP4_JrDSd7dUJW7PaJ9CjHRyWMZT
       EMAIL_FROM:             "Axxeler CRM <noreply@axxeler.in>"
+      # Meta / Google / Razorpay credentials can be left blank here and entered at
+      # runtime via Settings → Integrations (stored in the DB). Values set here act
+      # as defaults/fallbacks. Redirect URIs must match the public https origin.
       META_REDIRECT_URI:      https://crm.axxeler.in/api/meta/callback
       META_APP_ID:            ""
       META_APP_SECRET:        ""
       META_WEBHOOK_VERIFY_TOKEN: ""
+      GOOGLE_CLIENT_ID:       ""
+      GOOGLE_CLIENT_SECRET:   ""
+      GOOGLE_REDIRECT_URI:    https://crm.axxeler.in/api/google/callback
       WHATSAPP_GRAPH_VERSION: v20.0
       RAZORPAY_KEY_ID:        ""
       RAZORPAY_KEY_SECRET:    ""
@@ -106,6 +112,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
+      DOCKER_API_VERSION:       "1.40"     # daemon rejects clients below 1.40; 1.40 is its stated minimum, so always accepted
       WATCHTOWER_POLL_INTERVAL: "300"      # check every 5 minutes
       WATCHTOWER_CLEANUP:       "true"     # delete old images automatically
       WATCHTOWER_INCLUDE_STOPPED: "false"

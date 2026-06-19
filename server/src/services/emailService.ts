@@ -1,7 +1,18 @@
 import { Resend } from 'resend';
 import { env } from '../config/env.js';
+import { prisma } from '../db/prisma.js';
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
+
+// Resolve the company/brand name from settings, falling back to a neutral label.
+const getBrandName = async (): Promise<string> => {
+  try {
+    const company = await prisma.companySetting.findUnique({ where: { id: 'company' } });
+    return company?.name?.trim() || 'CRM';
+  } catch {
+    return 'CRM';
+  }
+};
 
 const send = async (to: string, subject: string, html: string) => {
   if (!resend) {
@@ -13,7 +24,7 @@ const send = async (to: string, subject: string, html: string) => {
   return result.data;
 };
 
-const baseTemplate = (content: string) => `
+const baseTemplate = (content: string, brandName: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -47,7 +58,7 @@ const baseTemplate = (content: string) => `
   <div class="container">
     ${content}
     <div class="footer">
-      <p>Sent by Axxeler CRM &bull; This is an automated email</p>
+      <p>Sent by ${brandName} &bull; This is an automated email</p>
     </div>
   </div>
 </body>
@@ -71,6 +82,7 @@ export const emailService = {
     status: string;
     items: Array<{ description: string; quantity: number; price: number }>;
   }) {
+    const brandName = await getBrandName();
     const subtotal = invoice.items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
     const tax = subtotal * (Number(invoice.taxRate) / 100);
     const total = subtotal + tax;
@@ -87,7 +99,7 @@ export const emailService = {
     const html = baseTemplate(`
       <div class="header">
         <h1>Invoice ${invoice.invoiceNumber}</h1>
-        <p>From Axxeler CRM</p>
+        <p>From ${brandName}</p>
       </div>
       <div class="body">
         <p style="color:#374151;font-size:15px;margin:0 0 24px">
@@ -115,9 +127,9 @@ export const emailService = {
           If you have any questions about this invoice, please don't hesitate to reach out to us.
         </p>
       </div>
-    `);
+    `, brandName);
 
-    return send(invoice.clientEmail, `Invoice ${invoice.invoiceNumber} from Axxeler CRM`, html);
+    return send(invoice.clientEmail, `Invoice ${invoice.invoiceNumber} from ${brandName}`, html);
   },
 
   async sendTaskReminderEmail(params: {
@@ -129,6 +141,7 @@ export const emailService = {
     priority: string;
     relatedTo?: { type: string; name: string } | null;
   }) {
+    const brandName = await getBrandName();
     const priorityBadge = params.priority === 'High'
       ? `<span class="badge badge-red">High Priority</span>`
       : params.priority === 'Medium'
@@ -155,10 +168,10 @@ export const emailService = {
           ${params.relatedTo ? `<div class="info-row" style="border:none"><span class="info-label">Related To</span><span class="info-value">${params.relatedTo.type}: ${params.relatedTo.name}</span></div>` : ''}
         </div>
         <p style="color:#64748b;font-size:13px">
-          Log in to Axxeler CRM to update the status of this task.
+          Log in to ${brandName} to update the status of this task.
         </p>
       </div>
-    `);
+    `, brandName);
 
     return send(
       params.assigneeEmail,

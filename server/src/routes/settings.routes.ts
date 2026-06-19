@@ -1,11 +1,15 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, allowRoles } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 router.use(requireAuth);
+
+// Writing company settings or integration credentials is admin-only. Reads of
+// company info stay open to all authenticated users (used app-wide for branding/currency).
+const adminOnly = allowRoles('admin');
 
 const schema = z.object({
   name: z.string(),
@@ -27,6 +31,7 @@ router.get(
 
 router.put(
   '/',
+  adminOnly,
   asyncHandler(async (req, res) => {
     const body = z.object({ company: schema.optional() }).parse(req.body);
     const company = body.company
@@ -46,6 +51,7 @@ router.get(
 
 router.put(
   '/company',
+  adminOnly,
   asyncHandler(async (req, res) => {
     const body = schema.partial().parse(req.body);
     const company = await prisma.companySetting.upsert({
@@ -77,6 +83,7 @@ const SECRET_FIELDS: Record<string, string[]> = {
 
 router.get(
   '/integrations/:provider',
+  adminOnly,
   asyncHandler(async (req, res) => {
     const provider = req.params.provider as string;
     const record = await prisma.integrationConfig.findUnique({ where: { provider } });
@@ -95,6 +102,7 @@ router.get(
 
 router.put(
   '/integrations/:provider',
+  adminOnly,
   asyncHandler(async (req, res) => {
     const provider = req.params.provider as string;
     const incoming = (req.body.config || {}) as Record<string, string>;

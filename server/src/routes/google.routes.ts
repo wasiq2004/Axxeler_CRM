@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, allowRoles } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
 import { env } from '../config/env.js';
@@ -33,6 +33,7 @@ router.get(
 router.put(
   '/oauth-app-config',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (req, res) => {
     const body = z.object({ config: z.record(z.string()) }).parse(req.body);
     const record = await prisma.integrationConfig.findUnique({ where: { provider: 'google_oauth_app' } });

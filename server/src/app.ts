@@ -19,6 +19,7 @@ import webhooksRoutes from './routes/webhooks.routes.js';
 import templatesRoutes from './routes/templates.routes.js';
 import searchRoutes from './routes/search.routes.js';
 import googleRoutes from './routes/google.routes.js';
+import uploadsRoutes from './routes/uploads.routes.js';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -29,12 +30,22 @@ app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
 app.use(rateLimit({ windowMs: 60_000, limit: 300 }));
 app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(cookieParser());
-app.use(express.json({ limit: '5mb' }));
+// Capture the raw body so webhook routes can verify HMAC signatures over the
+// exact bytes the provider signed (re-serializing the parsed JSON would break it).
+app.use(express.json({
+  limit: '5mb',
+  verify: (req, _res, buf) => { (req as any).rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, data: { status: 'ok', service: 'axxeler-crm-api' } });
 });
+
+// Serve uploaded files (avatars, logos) publicly. Reachable in production via the
+// nginx /api/ proxy, so no extra nginx/volume config is required.
+app.use('/api/uploads', express.static(env.UPLOAD_DIR));
+app.use('/api/uploads', uploadsRoutes);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);

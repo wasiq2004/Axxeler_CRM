@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { Router } from 'express';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 import { emailService } from '../services/emailService.js';
@@ -13,6 +14,21 @@ const router = Router();
 router.use(requireAuth);
 
 const include = { items: true, payments: true };
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$', EUR: '€', GBP: '£', INR: '₹', AUD: 'A$', CAD: 'C$', JPY: '¥', AED: 'د.إ', SGD: 'S$',
+};
+
+// Load company branding (name + currency symbol) for documents/emails.
+const getCompanyBranding = async () => {
+  const company = await prisma.companySetting.findUnique({ where: { id: 'company' } });
+  const currencyCode = company?.currency || 'USD';
+  return {
+    name: company?.name?.trim() || 'Your Company',
+    currencyCode,
+    currencySymbol: CURRENCY_SYMBOLS[currencyCode] || `${currencyCode} `,
+  };
+};
 
 const invoiceSchema = z.object({
   invoiceNumber: z.string(),
@@ -35,10 +51,19 @@ const presentInvoice = (invoice: any) => ({
   items: invoice.items?.map((item: any) => ({ ...item, price: Number(item.price) })) || [],
 });
 
-const totalFor = (invoice: any) => {
-  const subtotal = invoice.items.reduce((sum: number, item: any) => sum + Number(item.price) * item.quantity, 0);
-  return subtotal + subtotal * (Number(invoice.taxRate) / 100);
+// Compute money with Prisma.Decimal to avoid floating-point rounding errors.
+// Returns Decimals rounded to 2 dp; callers convert to number/string at the edge.
+const computeTotals = (invoice: any) => {
+  const subtotal = (invoice.items || []).reduce(
+    (sum: Prisma.Decimal, item: any) => sum.plus(new Prisma.Decimal(item.price).times(item.quantity)),
+    new Prisma.Decimal(0),
+  );
+  const tax = subtotal.times(new Prisma.Decimal(invoice.taxRate || 0).div(100));
+  const total = subtotal.plus(tax).toDecimalPlaces(2);
+  return { subtotal: subtotal.toDecimalPlaces(2), tax: tax.toDecimalPlaces(2), total };
 };
+
+const totalFor = (invoice: any) => computeTotals(invoice).total.toNumber();
 
 router.get(
   '/',
@@ -139,10 +164,10 @@ router.get(
     const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id as string }, include });
     if (!invoice) throw new HttpError(404, 'Invoice not found');
 
-    const subtotal = invoice.items.reduce((s: number, i: any) => s + Number(i.price) * i.quantity, 0);
-    const tax = subtotal * (Number(invoice.taxRate) / 100);
-    const total = subtotal + tax;
-    const fmt = (n: number) => n.toFixed(2);
+    const branding = await getCompanyBranding();
+    const sym = branding.currencySymbol;
+    const { subtotal, tax, total } = computeTotals(invoice);
+    const fmt = (n: Prisma.Decimal | number) => new Prisma.Decimal(n).toFixed(2);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${invoice.invoiceNumber}.pdf"`);
@@ -160,9 +185,11 @@ router.get(
     doc.fillColor('#ffffff').fontSize(26).font('Helvetica-Bold').text('INVOICE', 56, 30);
     doc.fontSize(11).font('Helvetica').text(`#${invoice.invoiceNumber}`, 56, 62);
 
-    // Invoice status badge (top right)
+    // Issuing company name (top right) + status badge
+    doc.fontSize(13).font('Helvetica-Bold')
+       .text(branding.name, doc.page.width - 250, 30, { width: 200, align: 'right' });
     doc.fontSize(10).font('Helvetica-Bold')
-       .text(presentEnum(invoice.status).toUpperCase(), doc.page.width - 150, 38, { width: 100, align: 'right' });
+       .text(presentEnum(invoice.status).toUpperCase(), doc.page.width - 250, 52, { width: 200, align: 'right' });
 
     // Bill to section
     doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold')
@@ -198,8 +225,8 @@ router.get(
       if (i % 2 === 0) doc.rect(56, y - 4, pageWidth, 24).fill('#fafafa');
       doc.fillColor('#1e293b').fontSize(10).font('Helvetica').text(item.description, 66, y, { width: 280 });
       doc.text(String(item.quantity), 350, y, { width: 50, align: 'right' });
-      doc.text(`$${fmt(Number(item.price))}`, 405, y, { width: 80, align: 'right' });
-      doc.text(`$${fmt(Number(item.price) * item.quantity)}`, 490, y, { width: 70, align: 'right' });
+      doc.text(`${sym}${fmt(Number(item.price))}`, 405, y, { width: 80, align: 'right' });
+      doc.text(`${sym}${fmt(Number(item.price) * item.quantity)}`, 490, y, { width: 70, align: 'right' });
       y += 28;
     });
 
@@ -211,18 +238,18 @@ router.get(
     const totalsX = 400;
     doc.fillColor(GRAY).fontSize(10).font('Helvetica');
     doc.text('Subtotal:', totalsX, y, { width: 80 });
-    doc.text(`$${fmt(subtotal)}`, totalsX + 80, y, { width: 76, align: 'right' });
+    doc.text(`${sym}${fmt(subtotal)}`, totalsX + 80, y, { width: 76, align: 'right' });
     y += 18;
     if (Number(invoice.taxRate) > 0) {
       doc.text(`Tax (${Number(invoice.taxRate)}%):`, totalsX, y, { width: 80 });
-      doc.text(`$${fmt(tax)}`, totalsX + 80, y, { width: 76, align: 'right' });
+      doc.text(`${sym}${fmt(tax)}`, totalsX + 80, y, { width: 76, align: 'right' });
       y += 18;
     }
     doc.moveTo(totalsX, y).lineTo(totalsX + 156, y).strokeColor('#e2e8f0').lineWidth(1).stroke();
     y += 10;
     doc.fillColor('#1e293b').fontSize(13).font('Helvetica-Bold');
     doc.text('TOTAL', totalsX, y, { width: 80 });
-    doc.text(`$${fmt(total)}`, totalsX + 80, y, { width: 76, align: 'right' });
+    doc.text(`${sym}${fmt(total)}`, totalsX + 80, y, { width: 76, align: 'right' });
 
     // Footer
     const footerY = doc.page.height - 70;
@@ -230,7 +257,7 @@ router.get(
     doc.fillColor(GRAY).fontSize(9).font('Helvetica')
        .text('Thank you for your business.', 56, footerY + 20, { align: 'center', width: doc.page.width - 112 });
     doc.fillColor('#94a3b8').fontSize(8)
-       .text('Generated by Axxeler CRM', 56, footerY + 38, { align: 'center', width: doc.page.width - 112 });
+       .text(`Generated by ${branding.name}`, 56, footerY + 38, { align: 'center', width: doc.page.width - 112 });
 
     doc.end();
   }),
