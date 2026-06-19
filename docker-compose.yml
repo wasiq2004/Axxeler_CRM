@@ -1,6 +1,6 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Axxeler CRM — Production Docker Compose (Dokploy)
-#  Live URL : https://crm.axxeler.in
+#  Live URL : https://axcrm.axxeler.in
 #
 #  Deployed via Dokploy as a "Docker Compose" service (Build from source).
 #  Dokploy builds the images from the Dockerfiles in this repo on each deploy,
@@ -9,7 +9,7 @@
 #  Requirements on the Dokploy host (provided by Dokploy itself):
 #    • external network `dokploy-network` must exist (it does, Dokploy creates it)
 #    • Traefik cert resolver named `letsencrypt` (Dokploy default)
-#    • DNS: crm.axxeler.in → VPS public IP, ports 80/443 open
+#    • DNS: axcrm.axxeler.in → VPS public IP, ports 80/443 open
 # ═══════════════════════════════════════════════════════════════════════════════
 
 services:
@@ -63,20 +63,20 @@ services:
       JWT_REFRESH_SECRET:     "NZGjr/Ed/dYxI003yqtkB/NsDR8bDX9v8oiE0Zk+byWa1eIC3SRm0i+KDKIh5EKX"
       ACCESS_TOKEN_TTL:       15m
       REFRESH_TOKEN_TTL_DAYS: "30"
-      CLIENT_ORIGIN:          https://crm.axxeler.in
+      CLIENT_ORIGIN:          https://axcrm.axxeler.in
       ENABLE_WORKERS:         "true"
       RESEND_API_KEY:         re_ZZ5QJUP4_JrDSd7dUJW7PaJ9CjHRyWMZT
       EMAIL_FROM:             "Axxeler CRM <noreply@axxeler.in>"
       # Meta / Google / Razorpay credentials can be left blank here and entered at
       # runtime via Settings → Integrations (stored in the DB). Values set here act
       # as defaults/fallbacks. Redirect URIs must match the public https origin.
-      META_REDIRECT_URI:      https://crm.axxeler.in/api/meta/callback
+      META_REDIRECT_URI:      https://axcrm.axxeler.in/api/meta/callback
       META_APP_ID:            ""
       META_APP_SECRET:        ""
       META_WEBHOOK_VERIFY_TOKEN: ""
       GOOGLE_CLIENT_ID:       ""
       GOOGLE_CLIENT_SECRET:   ""
-      GOOGLE_REDIRECT_URI:    https://crm.axxeler.in/api/google/callback
+      GOOGLE_REDIRECT_URI:    https://axcrm.axxeler.in/api/google/callback
       WHATSAPP_GRAPH_VERSION: v20.0
       RAZORPAY_KEY_ID:        ""
       RAZORPAY_KEY_SECRET:    ""
