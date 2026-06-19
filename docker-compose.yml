@@ -91,7 +91,10 @@ services:
       redis:
         condition: service_healthy
 
-  # ── Frontend — Nginx SPA + /api proxy → backend, exposed via Dokploy Traefik ──
+  # ── Frontend — Nginx SPA + /api proxy → backend ──────────────────────────────
+  #  Routing/TLS is managed by Dokploy's Domains UI (no Traefik labels here).
+  #  In Dokploy → Domains, point the domain at:  service "frontend", port 80.
+  #  The frontend stays on dokploy-network so Dokploy's Traefik can reach it.
   frontend:
     build:
       context: .
@@ -102,21 +105,6 @@ services:
       - dokploy-network   # so Dokploy's Traefik can route to it
     depends_on:
       - backend
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=dokploy-network"
-      # HTTPS router
-      - "traefik.http.routers.axxeler-crm.rule=Host(`crm.axxeler.in`)"
-      - "traefik.http.routers.axxeler-crm.entrypoints=websecure"
-      - "traefik.http.routers.axxeler-crm.tls=true"
-      - "traefik.http.routers.axxeler-crm.tls.certresolver=letsencrypt"
-      - "traefik.http.services.axxeler-crm.loadbalancer.server.port=80"
-      # HTTP → HTTPS redirect
-      - "traefik.http.routers.axxeler-crm-http.rule=Host(`crm.axxeler.in`)"
-      - "traefik.http.routers.axxeler-crm-http.entrypoints=web"
-      - "traefik.http.routers.axxeler-crm-http.middlewares=axxeler-https-redirect"
-      - "traefik.http.middlewares.axxeler-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.axxeler-https-redirect.redirectscheme.permanent=true"
 
 volumes:
   postgres_data:
