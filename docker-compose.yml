@@ -112,9 +112,5 @@ volumes:
   uploads_data:
 
 networks:
-  # Private network for db / redis / backend / frontend internal traffic.
   internal:
     driver: bridge
-  # Dokploy's shared Traefik network — created and managed by Dokploy.
-  dokploy-network:
-    external: true
