@@ -42,9 +42,12 @@ const ReportCard = ({ title, description, icon: Icon, children }: { title: strin
     </div>
 );
 
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = [CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
+
 const ReportsPage: React.FC = () => {
-    const [quarter, setQuarter] = useState<number>(1);
-    const [year] = useState<number>(2025);
+    const [quarter, setQuarter] = useState<number>(Math.floor(new Date().getMonth() / 3) + 1);
+    const [year, setYear] = useState<number>(CURRENT_YEAR);
 
     const { leads } = useLeads();
     const { deals } = useDeals();
@@ -140,6 +143,16 @@ const ReportsPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <select
+                        value={year}
+                        onChange={(e) => setYear(Number(e.target.value))}
+                        className="px-4 py-2 text-sm font-bold rounded-xl border border-gray-200 bg-white text-gray-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        aria-label="Select year"
+                    >
+                        {YEAR_OPTIONS.map((y) => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
                     <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-inner">
                         {[1, 2, 3, 4].map((q) => (
                             <button
@@ -167,10 +180,10 @@ const ReportsPage: React.FC = () => {
 
             {/* KPI Section */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <ReportKPI title="New Leads" value={stats.newLeads} trend="+12%" icon={Users} color="bg-blue-500" />
-                <ReportKPI title="Deals Won" value={stats.dealsClosed} trend="+5%" icon={Target} color="bg-emerald-500" />
-                <ReportKPI title="Total Revenue" value={stats.revenue} trend="+8%" icon={DollarSign} color="bg-violet-500" />
-                <ReportKPI title="Avg Deal Value" value={stats.avgDealValue} trend="+2%" icon={TrendingUp} color="bg-orange-500" />
+                <ReportKPI title="New Leads" value={stats.newLeads} icon={Users} color="bg-blue-500" />
+                <ReportKPI title="Deals Won" value={stats.dealsClosed} icon={Target} color="bg-emerald-500" />
+                <ReportKPI title="Total Revenue" value={stats.revenue} icon={DollarSign} color="bg-violet-500" />
+                <ReportKPI title="Avg Deal Value" value={stats.avgDealValue} icon={TrendingUp} color="bg-orange-500" />
             </div>
 
             {/* Charts Section */}

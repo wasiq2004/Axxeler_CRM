@@ -24,15 +24,12 @@ const CampaignDetailPage: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm p-8 text-center">
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <p className="text-gray-600">The campaign you're looking for doesn't exist or has been deleted.</p>
-          <Button
-            variant="primary"
-            size="md"
-            className="mt-4"
-            as={Link}
+          <Link
             to="/campaigns"
+            className="mt-4 inline-flex items-center justify-center rounded-md font-semibold px-4 py-2 text-sm bg-primary text-white hover:bg-primary-dark shadow-sm hover:shadow-md transition-all"
           >
             Back to Campaigns
-          </Button>
+          </Link>
         </div>
       </div>
     );

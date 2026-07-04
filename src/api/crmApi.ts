@@ -32,7 +32,7 @@ class CrmApi {
     return this.api.post('/auth/change-password', { currentPassword, newPassword });
   }
 
-  async resetPassword(data: { token: string; password: string }) {
+  async resetPassword(data: { token: string; newPassword: string }) {
     return this.api.post('/auth/reset-password', data);
   }
 
@@ -277,6 +277,23 @@ class CrmApi {
 
   getInvoicePdfUrl(id: string) {
     return `/api/invoices/${id}/pdf`;
+  }
+
+  // Custom HTML invoice templates
+  async getInvoiceTemplates() {
+    return this.api.get('/invoice-templates');
+  }
+
+  async createInvoiceTemplate(data: { name: string; html: string; isDefault?: boolean }) {
+    return this.api.post('/invoice-templates', data);
+  }
+
+  async updateInvoiceTemplate(id: string, data: { name?: string; html?: string; isDefault?: boolean }) {
+    return this.api.put(`/invoice-templates/${id}`, data);
+  }
+
+  async deleteInvoiceTemplate(id: string) {
+    return this.api.delete(`/invoice-templates/${id}`);
   }
 
   async downloadInvoicePdf(id: string): Promise<void> {

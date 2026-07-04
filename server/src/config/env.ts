@@ -30,3 +30,18 @@ const schema = z.object({
 });
 
 export const env = schema.parse(process.env);
+
+// Refuse to boot in production with the shipped default signing secrets — they
+// are public knowledge and would allow anyone to forge tokens.
+const DEFAULT_SECRETS = ['dev-access-secret-change-me', 'dev-refresh-secret-change-me'];
+if (env.NODE_ENV === 'production') {
+  if (
+    DEFAULT_SECRETS.includes(env.JWT_ACCESS_SECRET) ||
+    DEFAULT_SECRETS.includes(env.JWT_REFRESH_SECRET) ||
+    env.JWT_ACCESS_SECRET === env.JWT_REFRESH_SECRET
+  ) {
+    throw new Error(
+      'Refusing to start in production: set strong, distinct JWT_ACCESS_SECRET and JWT_REFRESH_SECRET environment variables.',
+    );
+  }
+}

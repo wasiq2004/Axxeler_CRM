@@ -29,7 +29,7 @@ const ReviewInvoiceStep: React.FC<ReviewInvoiceStepProps> = ({ formData }) => {
                             Draft Invoice
                         </span>
                         <h2 className="text-3xl font-bold text-gray-900 mt-4">Invoice</h2>
-                        <p className="text-gray-500 mt-1">#INV-{String(Date.now()).slice(-4)}</p>
+                        <p className="text-gray-500 mt-1">Invoice number assigned on creation</p>
                     </div>
                     <div className="text-right">
                         <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Amount Due</p>

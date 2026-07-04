@@ -4,6 +4,7 @@ import { TrendingUp, Flame, CheckSquare, DollarSign } from 'lucide-react';
 import { useDeals } from '../../../contexts/DealsContext';
 import { useLeads } from '../../../contexts/LeadsContext';
 import { useTasks } from '../../../contexts/TasksContext';
+import { useInvoices } from '../../../contexts/InvoicesContext';
 import { useCurrency } from '../../../contexts/CurrencyContext';
 import { Target } from 'lucide-react';
 
@@ -13,6 +14,7 @@ const DashboardStats: React.FC = () => {
   const { deals } = useDeals();
   const { leads } = useLeads();
   const { tasks } = useTasks();
+  const { invoices } = useInvoices();
   const { currency } = useCurrency();
   const { user } = useAuth();
   const isTeamMember = user?.role === 'team_member';
@@ -20,7 +22,13 @@ const DashboardStats: React.FC = () => {
   const dealsInPipeline = deals.filter(d => d.stage !== 'Closed - Won' && d.stage !== 'Closed - Lost').length;
   const hotLeads = leads.filter(l => l.score > 80).length;
   const activeTasks = tasks.filter(t => t.status !== 'Completed').length;
-  const totalRevenue = deals.filter(d => d.stage === 'Closed - Won').reduce((sum, d) => sum + Number(d.value), 0);
+  // Revenue = paid invoices (incl. tax) — matches the Reports page definition.
+  const totalRevenue = invoices
+    .filter(i => i.status === 'Paid')
+    .reduce((sum, i) => {
+      const subtotal = (i.items || []).reduce((s, item) => s + Number(item.price) * item.quantity, 0);
+      return sum + subtotal + subtotal * ((i.taxRate || 0) / 100);
+    }, 0);
 
   const wonDeals = deals.filter(d => d.stage === 'Closed - Won').length;
   const closedDeals = deals.filter(d => d.stage === 'Closed - Won' || d.stage === 'Closed - Lost').length;

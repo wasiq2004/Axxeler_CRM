@@ -7,7 +7,7 @@ interface LeadSourceChartProps {
     year?: number;
 }
 
-const LeadSourceChart: React.FC<LeadSourceChartProps> = ({ quarter, year = 2025 }) => {
+const LeadSourceChart: React.FC<LeadSourceChartProps> = ({ quarter, year = new Date().getFullYear() }) => {
     const { leads } = useLeads();
 
     const chartData = useMemo(() => {

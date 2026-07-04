@@ -23,7 +23,7 @@ interface SalesFunnelChartProps {
     year?: number;
 }
 
-const SalesFunnelChart: React.FC<SalesFunnelChartProps> = ({ quarter, year = 2025 }) => {
+const SalesFunnelChart: React.FC<SalesFunnelChartProps> = ({ quarter, year = new Date().getFullYear() }) => {
     const { leads } = useLeads();
 
     const funnelData = useMemo(() => {
@@ -55,7 +55,7 @@ const SalesFunnelChart: React.FC<SalesFunnelChartProps> = ({ quarter, year = 202
         }
         return data;
 
-    }, [leads]);
+    }, [leads, quarter, year]);
 
     const colors = ['#0079C1', '#3399d6', '#66b3e1', '#99cceb'];
 

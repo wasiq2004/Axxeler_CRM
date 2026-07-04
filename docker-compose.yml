@@ -20,7 +20,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER:     axxeler
-      POSTGRES_PASSWORD: Axx3l3rDB@Secure2024
+      # Set POSTGRES_PASSWORD in the Dokploy service environment (never commit it).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the deploy environment}
       POSTGRES_DB:       axxeler_crm
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -55,17 +56,17 @@ services:
     environment:
       NODE_ENV:               production
       PORT:                   "4000"
-      # NOTE: the '@' in the password is URL-encoded as %40 so the connection
-      # string parses unambiguously.
-      DATABASE_URL:           postgresql://axxeler:Axx3l3rDB%40Secure2024@db:5432/axxeler_crm
+      # All secrets are injected from the Dokploy service environment — never
+      # commit real values. The '@' in the DB password must be URL-encoded (%40).
+      DATABASE_URL:           ${DATABASE_URL:?set DATABASE_URL in the deploy environment}
       REDIS_URL:              redis://redis:6379
-      JWT_ACCESS_SECRET:      "nTbLtxcRcsiUhf91NJ5L0sUJUNymhlt8qH6Gg28cNVwGEYO48JzUfKxHyYJIHo8a"
-      JWT_REFRESH_SECRET:     "NZGjr/Ed/dYxI003yqtkB/NsDR8bDX9v8oiE0Zk+byWa1eIC3SRm0i+KDKIh5EKX"
+      JWT_ACCESS_SECRET:      ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in the deploy environment}
+      JWT_REFRESH_SECRET:     ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in the deploy environment}
       ACCESS_TOKEN_TTL:       15m
       REFRESH_TOKEN_TTL_DAYS: "30"
       CLIENT_ORIGIN:          https://axcrm.axxeler.in
       ENABLE_WORKERS:         "true"
-      RESEND_API_KEY:         re_ZZ5QJUP4_JrDSd7dUJW7PaJ9CjHRyWMZT
+      RESEND_API_KEY:         ${RESEND_API_KEY:-}
       EMAIL_FROM:             "Axxeler CRM <noreply@axxeler.in>"
       # Meta / Google / Razorpay credentials can be left blank here and entered at
       # runtime via Settings → Integrations (stored in the DB). Values set here act

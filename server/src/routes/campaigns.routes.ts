@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
+import { requireAuth, allowRoles, type AuthenticatedRequest } from '../middleware/auth.js';
 import { queues } from '../jobs/queues.js';
 import { metaService } from '../services/metaService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -9,6 +9,7 @@ import { HttpError } from '../utils/httpError.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(allowRoles('admin', 'manager'));
 
 router.get(
   '/',
@@ -43,7 +44,7 @@ router.post(
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
-    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id }, include: { recipients: true } });
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id as string }, include: { recipients: true } });
     if (!campaign) throw new HttpError(404, 'Campaign not found');
     res.json({ success: true, data: campaign });
   }),
@@ -52,7 +53,7 @@ router.get(
 router.put(
   '/:id',
   asyncHandler(async (req, res) => {
-    const campaign = await prisma.campaign.update({ where: { id: req.params.id }, data: req.body });
+    const campaign = await prisma.campaign.update({ where: { id: req.params.id as string }, data: req.body });
     res.json({ success: true, data: campaign });
   }),
 );
@@ -60,7 +61,7 @@ router.put(
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
-    await prisma.campaign.delete({ where: { id: req.params.id } });
+    await prisma.campaign.delete({ where: { id: req.params.id as string } });
     res.status(204).send();
   }),
 );
@@ -68,7 +69,7 @@ router.delete(
 router.post(
   '/:id/send',
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    const campaign = await prisma.campaign.findUnique({ where: { id: req.params.id as string } });
     if (!campaign) throw new HttpError(404, 'Campaign not found');
 
     const target = campaign.targetQuery as any;
@@ -90,9 +91,9 @@ router.post(
 router.get(
   '/:id/analytics',
   asyncHandler(async (req, res) => {
-    const recipients = await prisma.campaignRecipient.groupBy({
+    const recipients = await (prisma.campaignRecipient as any).groupBy({
       by: ['status'],
-      where: { campaignId: req.params.id },
+      where: { campaignId: req.params.id as string },
       _count: { status: true },
     });
     res.json({ success: true, data: recipients });

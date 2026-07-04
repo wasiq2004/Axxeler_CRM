@@ -19,15 +19,15 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [isLoading, setIsLoading] = useState(false);
+  // Start in a loading state when a token is present so route guards wait for the
+  // profile (and therefore the role) to hydrate before evaluating access.
+  const [isLoading, setIsLoading] = useState(!!localStorage.getItem('token'));
   const [error, setError] = useState<string | null>(null);
   const { crmApi } = useApi();
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const savedRole = localStorage.getItem('user_role') as UserRole || 'admin';
-    const savedEmail = localStorage.getItem('user_email') || 'admin@axxeler.com';
 
     if (token) {
       setIsAuthenticated(true);
@@ -48,7 +48,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setToken(null);
           setIsAuthenticated(false);
           setUser(null);
-        });
+        })
+        .finally(() => setIsLoading(false));
     }
   }, [crmApi]);
 
@@ -102,6 +103,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
+    // Revoke the server-side session (best effort — don't block local sign-out).
+    crmApi.logout?.().catch(() => undefined);
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user_role');
@@ -109,6 +112,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
+    setIsLoading(false);
     crmApi.setToken(null);
   };
 

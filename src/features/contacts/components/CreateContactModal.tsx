@@ -9,6 +9,7 @@ const CreateContactModal: React.FC = () => {
   const { addContact } = useContacts();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,10 +17,15 @@ const CreateContactModal: React.FC = () => {
       alert('Please fill in Name and Phone Number.');
       return;
     }
-    addContact({ name, phone: `91${phone.replace(/\D/g, '')}` });
-    
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+    addContact({ name, phone: `91${phone.replace(/\D/g, '')}`, email: email.trim() || undefined });
+
     setName('');
     setPhone('');
+    setEmail('');
     closeCreateContactModal();
   };
 
@@ -90,6 +96,18 @@ const CreateContactModal: React.FC = () => {
                       />
                     </div>
                 </div>
+            </div>
+
+            <div>
+                <label className={labelClass}>Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className={inputClass}
+                  placeholder="e.g. john@example.com"
+                />
+                <p className="mt-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ml-1">Required to send emails to this contact</p>
             </div>
           </div>
 

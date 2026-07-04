@@ -25,10 +25,13 @@ import InvoicesPage from '@/features/invoices/pages/InvoicesPage';
 import InvoiceDetailPage from '@/features/invoices/pages/InvoiceDetailPage';
 import CreateInvoicePage from '@/features/invoices/pages/CreateInvoicePage';
 import EditInvoicePage from '@/features/invoices/pages/EditInvoicePage';
+import InvoiceTemplatesPage from '@/features/invoices/pages/InvoiceTemplatesPage';
 import TasksPage from '@/features/tasks/TasksPage';
 import NotificationsPage from '@/features/notifications/NotificationsPage';
 import LoginPage from '@/features/auth/LoginPage';
 import SignupPage from '@/features/auth/SignupPage';
+import ForgotPasswordPage from '@/features/auth/ForgotPasswordPage';
+import ResetPasswordPage from '@/features/auth/ResetPasswordPage';
 
 import { LeadsProvider } from '@/contexts/LeadsContext';
 import { UIProvider } from '@/contexts/UIContext';
@@ -72,6 +75,8 @@ const App: React.FC = () => {
                                             <Routes>
                                               <Route path="/login" element={<LoginPage />} />
                                               <Route path="/signup" element={<SignupPage />} />
+                                              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                                              <Route path="/reset-password" element={<ResetPasswordPage />} />
                                               <Route path="" element={<ProtectedRoute><Shell><Outlet /></Shell></ProtectedRoute>}>
                                                 <Route index element={<DashboardPage />} />
                                                 
@@ -116,6 +121,7 @@ const App: React.FC = () => {
                                                 {/* Invoices - Admin Only */}
                                                 <Route path="invoices" element={<ProtectedRoute allowedRoles={['admin']}><InvoicesPage /></ProtectedRoute>} />
                                                 <Route path="invoices/new" element={<ProtectedRoute allowedRoles={['admin']}><CreateInvoicePage /></ProtectedRoute>} />
+                                                <Route path="invoices/templates" element={<ProtectedRoute allowedRoles={['admin']}><InvoiceTemplatesPage /></ProtectedRoute>} />
                                                 <Route path="invoices/:id" element={<ProtectedRoute allowedRoles={['admin']}><InvoiceDetailPage /></ProtectedRoute>} />
                                                 <Route path="invoices/:id/edit" element={<ProtectedRoute allowedRoles={['admin']}><EditInvoicePage /></ProtectedRoute>} />
                                                 

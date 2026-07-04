@@ -7,7 +7,7 @@ interface DealStageChartProps {
     year?: number;
 }
 
-const DealStageChart: React.FC<DealStageChartProps> = ({ quarter, year = 2025 }) => {
+const DealStageChart: React.FC<DealStageChartProps> = ({ quarter, year = new Date().getFullYear() }) => {
     const { deals } = useDeals();
 
     const chartData = useMemo(() => {

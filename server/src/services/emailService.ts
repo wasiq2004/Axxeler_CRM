@@ -4,6 +4,10 @@ import { prisma } from '../db/prisma.js';
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$', EUR: '€', GBP: '£', INR: '₹', AUD: 'A$', CAD: 'C$', JPY: '¥', AED: 'د.إ', SGD: 'S$',
+};
+
 // Resolve the company/brand name from settings, falling back to a neutral label.
 const getBrandName = async (): Promise<string> => {
   try {
@@ -11,6 +15,20 @@ const getBrandName = async (): Promise<string> => {
     return company?.name?.trim() || 'CRM';
   } catch {
     return 'CRM';
+  }
+};
+
+// Resolve brand name + the configured currency symbol together.
+const getBrandInfo = async (): Promise<{ name: string; currencySymbol: string }> => {
+  try {
+    const company = await prisma.companySetting.findUnique({ where: { id: 'company' } });
+    const code = company?.currency || 'USD';
+    return {
+      name: company?.name?.trim() || 'CRM',
+      currencySymbol: CURRENCY_SYMBOLS[code] || `${code} `,
+    };
+  } catch {
+    return { name: 'CRM', currencySymbol: '$' };
   }
 };
 
@@ -82,7 +100,7 @@ export const emailService = {
     status: string;
     items: Array<{ description: string; quantity: number; price: number }>;
   }) {
-    const brandName = await getBrandName();
+    const { name: brandName, currencySymbol } = await getBrandInfo();
     const subtotal = invoice.items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
     const tax = subtotal * (Number(invoice.taxRate) / 100);
     const total = subtotal + tax;
@@ -91,8 +109,8 @@ export const emailService = {
       <tr>
         <td>${item.description}</td>
         <td style="text-align:right">${item.quantity}</td>
-        <td style="text-align:right">$${Number(item.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-        <td style="text-align:right">$${(Number(item.price) * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+        <td style="text-align:right">${currencySymbol}${Number(item.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+        <td style="text-align:right">${currencySymbol}${(Number(item.price) * item.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
       </tr>
     `).join('');
 
@@ -118,9 +136,9 @@ export const emailService = {
           </thead>
           <tbody>
             ${itemRows}
-            <tr class="total-row"><td colspan="3">Subtotal</td><td style="text-align:right">$${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td></tr>
-            ${invoice.taxRate > 0 ? `<tr class="total-row"><td colspan="3">Tax (${invoice.taxRate}%)</td><td style="text-align:right">$${tax.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td></tr>` : ''}
-            <tr class="total-row"><td colspan="3" style="font-size:16px">Total Due</td><td style="text-align:right;font-size:16px;color:#0079C1">$${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td></tr>
+            <tr class="total-row"><td colspan="3">Subtotal</td><td style="text-align:right">${currencySymbol}${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td></tr>
+            ${invoice.taxRate > 0 ? `<tr class="total-row"><td colspan="3">Tax (${invoice.taxRate}%)</td><td style="text-align:right">${currencySymbol}${tax.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td></tr>` : ''}
+            <tr class="total-row"><td colspan="3" style="font-size:16px">Total Due</td><td style="text-align:right;font-size:16px;color:#0079C1">${currencySymbol}${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td></tr>
           </tbody>
         </table>
         <p style="color:#64748b;font-size:13px;margin-top:24px">

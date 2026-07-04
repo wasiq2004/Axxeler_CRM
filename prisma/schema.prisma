@@ -237,10 +237,23 @@ model Invoice {
   dueDate       DateTime
   status        InvoiceStatus @default(Draft)
   taxRate       Decimal       @db.Decimal(5, 2)
+  // Optional custom HTML invoice design. `templateId` links a reusable template;
+  // `customHtml` overrides it for this one invoice.
+  templateId    String?
+  customHtml    String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   items         InvoiceItem[]
   payments      Payment[]
+}
+
+model InvoiceTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  html      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model InvoiceItem {

@@ -6,7 +6,7 @@ import type { Contact } from '../types';
 interface ContactsContextType {
   contacts: Contact[];
   isLoading: boolean;
-  addContact: (contactData: Omit<Contact, 'id' | 'tags' | 'source' | 'customFields' | 'createdAt' | 'updatedAt' | 'normalizedPhone'>) => Promise<void>;
+  addContact: (contactData: { name?: string; phone: string; email?: string; groupName?: string }) => Promise<void>;
   editContact: (contactId: string, contactData: Partial<Contact>) => Promise<void>;
   deleteContact: (contactId: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -38,13 +38,14 @@ export const ContactsProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [isAuthenticated, fetchContacts]);
 
   const addContact = async (
-    contactData: Omit<Contact, 'id' | 'tags' | 'source' | 'customFields' | 'createdAt' | 'updatedAt' | 'normalizedPhone'>,
+    contactData: { name?: string; phone: string; email?: string; groupName?: string },
   ) => {
+    const { email, ...rest } = contactData;
     const res = await crmApi.createContact({
-      ...contactData,
+      ...rest,
       tags: [],
       source: 'Manual Entry',
-      customFields: {},
+      customFields: email ? { email } : {},
     });
     setContacts(prev => [res.data, ...prev]);
   };

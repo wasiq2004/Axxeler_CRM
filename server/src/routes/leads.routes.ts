@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
+import { requireAuth, requirePermission, type AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { normalizeEnum, mapRecordForUi } from '../utils/enums.js';
 import { HttpError } from '../utils/httpError.js';
@@ -11,6 +11,11 @@ const _syncLead = (lead: any) => googleService.syncRecordToSheet('leads', lead).
 
 const router = Router();
 router.use(requireAuth);
+
+// Granular permission gates (honour the per-user permissions JSON).
+const canView = requirePermission('viewLeads');
+const canEdit = requirePermission('editLeads');
+const canDelete = requirePermission('deleteLeads');
 
 const leadInclude = {
   owner: { select: { id: true, name: true, avatar: true } },
@@ -59,6 +64,7 @@ const presentLead = (lead: any) => {
 
 router.get(
   '/',
+  canView,
   asyncHandler(async (req, res) => {
     const search = String(req.query.search || '');
     const where = search
@@ -75,6 +81,7 @@ router.get(
 
 router.post(
   '/',
+  canEdit,
   asyncHandler(async (req, res) => {
     const body = leadSchema.parse(req.body);
     const lead = await prisma.lead.create({
@@ -89,8 +96,9 @@ router.post(
 
 router.get(
   '/:id',
+  canView,
   asyncHandler(async (req, res) => {
-    const lead = await prisma.lead.findUnique({ where: { id: req.params.id }, include: leadInclude });
+    const lead = await prisma.lead.findUnique({ where: { id: req.params.id as string }, include: leadInclude });
     if (!lead) throw new HttpError(404, 'Lead not found');
     res.json({ success: true, data: presentLead(lead) });
   }),
@@ -98,10 +106,11 @@ router.get(
 
 router.put(
   '/:id',
+  canEdit,
   asyncHandler(async (req, res) => {
     const body = leadSchema.partial().parse(req.body);
     const lead = await prisma.lead.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { ...body, status: body.status ? (normalizeEnum(body.status) as any) : undefined },
       include: leadInclude,
     });
@@ -113,18 +122,20 @@ router.put(
 
 router.delete(
   '/:id',
+  canDelete,
   asyncHandler(async (req, res) => {
-    await prisma.lead.delete({ where: { id: req.params.id } });
+    await prisma.lead.delete({ where: { id: req.params.id as string } });
     res.status(204).send();
   }),
 );
 
 router.post(
   '/:id/status',
+  canEdit,
   asyncHandler(async (req, res) => {
     const body = z.object({ status: z.string() }).parse(req.body);
     const lead = await prisma.lead.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { status: normalizeEnum(body.status) as any },
       include: leadInclude,
     });
@@ -134,9 +145,10 @@ router.post(
 
 router.get(
   '/:id/notes',
+  canView,
   asyncHandler(async (req, res) => {
     const notes = await prisma.leadNote.findMany({
-      where: { leadId: req.params.id },
+      where: { leadId: req.params.id as string },
       include: { author: { select: { id: true, name: true, avatar: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -146,14 +158,15 @@ router.get(
 
 router.post(
   '/:id/notes',
+  canEdit,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const body = z.object({ content: z.string().min(1) }).parse(req.body);
     const note = await prisma.leadNote.create({
-      data: { leadId: req.params.id, content: body.content, authorId: req.user!.id },
+      data: { leadId: req.params.id as string, content: body.content, authorId: req.user!.id },
       include: { author: { select: { id: true, name: true, avatar: true } } },
     });
     await prisma.leadActivity.create({
-      data: { leadId: req.params.id, type: 'Note', title: 'Note added', content: body.content, authorName: req.user!.name },
+      data: { leadId: req.params.id as string, type: 'Note', title: 'Note added', content: body.content, authorName: req.user!.name },
     });
     res.status(201).json({ success: true, data: presentNote(note) });
   }),
@@ -161,6 +174,7 @@ router.post(
 
 router.post(
   '/:id/convert',
+  canEdit,
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const lead = await prisma.lead.findUnique({ where: { id: req.params.id as string } });
     if (!lead) throw new HttpError(404, 'Lead not found');
@@ -231,6 +245,7 @@ router.post(
 
 router.post(
   '/import',
+  canEdit,
   asyncHandler(async (req, res) => {
     const body = z.object({ leads: z.array(leadSchema) }).parse(req.body);
     const created = [];
@@ -248,6 +263,7 @@ router.post(
 
 router.post(
   '/bulk-delete',
+  canDelete,
   asyncHandler(async (req, res) => {
     const body = z.object({ ids: z.array(z.string()).min(1) }).parse(req.body);
     await prisma.lead.deleteMany({ where: { id: { in: body.ids } } });
@@ -257,6 +273,7 @@ router.post(
 
 router.post(
   '/bulk-status',
+  canEdit,
   asyncHandler(async (req, res) => {
     const body = z.object({ ids: z.array(z.string()).min(1), status: z.string() }).parse(req.body);
     await prisma.lead.updateMany({ where: { id: { in: body.ids } }, data: { status: normalizeEnum(body.status) as any } });

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Printer, Download, CreditCard, ShieldCheck, Edit, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, Printer, Download, Edit, FileText, Loader2, FileCode } from 'lucide-react';
+import InvoiceDesignerModal from '@/features/invoices/components/InvoiceDesignerModal';
 import type { Invoice, InvoiceStatus } from '@/types';
 import { useInvoices } from '@/contexts/InvoicesContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -8,44 +9,6 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import Button from '@/components/ui/Button';
 import { getInvoiceStatusMeta } from '@/features/invoices/constants';
 import { useApi } from '@/contexts/ApiContext';
-
-const PaymentModal = ({ amount, onPay, onCancel, currency }: { amount: number; onPay: () => void; onCancel: () => void; currency: any }) => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <h2 className="text-xl font-bold text-center">Simulated Payment</h2>
-            <p className="text-center text-gray-600 mt-2">You are about to pay {currency.symbol}{amount.toLocaleString()}</p>
-            <div className="mt-6 bg-gray-50 p-4 rounded-lg border">
-                <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Total</span>
-                    <span className="font-bold text-lg">{currency.symbol}{amount.toLocaleString()}</span>
-                </div>
-            </div>
-            <p className="text-xs text-gray-500 text-center mt-4 flex items-center justify-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-green-600" />
-                This is a secure, simulated payment environment. No real transaction will occur.
-            </p>
-            <div className="mt-6 flex justify-end space-x-3">
-                <Button
-                  variant="outline"
-                  size="md"
-                  onClick={onCancel}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="primary"
-                  size="md"
-                  onClick={onPay}
-                  icon={CreditCard}
-                  iconPosition="left"
-                >
-                  Pay Now
-                </Button>
-            </div>
-        </div>
-    </div>
-);
-
 
 const InvoiceDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -57,10 +20,8 @@ const InvoiceDetailPage: React.FC = () => {
   
   const invoice = invoices.find(inv => inv.id === id);
 
-  const [isPaying, setIsPaying] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showDesigner, setShowDesigner] = useState(false);
 
   const { subtotal, taxAmount, total } = useMemo(() => {
     if (!invoice) return { subtotal: 0, taxAmount: 0, total: 0 };
@@ -80,21 +41,6 @@ const InvoiceDetailPage: React.FC = () => {
   }
   
   const statusMeta = getInvoiceStatusMeta(invoice.status);
-
-  const handlePayment = () => {
-      setIsProcessing(true);
-      setTimeout(() => {
-          setIsProcessing(false);
-          setPaymentSuccess(true);
-          if (invoice) {
-            updateInvoice(invoice.id, { status: 'Paid' });
-          }
-          setTimeout(() => {
-            setIsPaying(false);
-            setPaymentSuccess(false);
-          }, 2000);
-      }, 1500);
-  }
 
   const handleDownloadPDF = async () => {
     if (!invoice) return;
@@ -185,17 +131,15 @@ const InvoiceDetailPage: React.FC = () => {
             >
               {isDownloading ? 'Generating...' : 'Download PDF'}
             </Button>
-            {invoice.status !== 'Paid' && invoice.status !== 'Draft' && (
-              <Button
-                variant="primary"
-                size="md"
-                icon={CreditCard}
-                iconPosition="left"
-                onClick={() => setIsPaying(true)}
-              >
-                Pay Now
-              </Button>
-            )}
+            <Button
+              variant="primary"
+              size="md"
+              icon={FileCode}
+              iconPosition="left"
+              onClick={() => setShowDesigner(true)}
+            >
+              Custom Design
+            </Button>
           </div>
         </div>
       </div>
@@ -269,27 +213,8 @@ const InvoiceDetailPage: React.FC = () => {
             </div>
         </div>
       </div>
-      
-      {isPaying && !isProcessing && !paymentSuccess && (
-        <PaymentModal amount={total} onPay={handlePayment} onCancel={() => setIsPaying(false)} currency={currency} />
-      )}
-      {isPaying && isProcessing && (
-         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 text-center">
-                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-4 font-semibold">Processing Payment...</p>
-            </div>
-        </div>
-      )}
-       {isPaying && paymentSuccess && (
-         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 text-center">
-                <ShieldCheck className="w-16 h-16 text-green-500 mx-auto" />
-                <h3 className="text-xl font-bold mt-4">Payment Successful!</h3>
-                <p className="text-gray-600">The invoice has been marked as paid.</p>
-            </div>
-        </div>
-      )}
+
+      {showDesigner && <InvoiceDesignerModal invoice={invoice} onClose={() => setShowDesigner(false)} />}
     </div>
   );
 };

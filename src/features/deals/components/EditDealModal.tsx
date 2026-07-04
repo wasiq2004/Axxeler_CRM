@@ -43,11 +43,15 @@ const EditDealModal: React.FC<EditDealModalProps> = ({ deal, defaultStage, defau
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) {
+    if (!name.trim()) {
       alert('Please fill in the deal name.');
       return;
     }
-    
+    if (!accountName.trim()) {
+      alert('Please fill in the account name.');
+      return;
+    }
+
     if (deal) {
       editDeal(deal.id, { 
         name, 
@@ -115,12 +119,13 @@ const EditDealModal: React.FC<EditDealModalProps> = ({ deal, defaultStage, defau
               />
             </div>
             <div>
-              <label className={labelClass}>Account Name</label>
-              <input 
-                type="text" 
-                value={accountName} 
-                onChange={e => setAccountName(e.target.value)} 
-                className={inputClass} 
+              <label className={labelClass}>Account Name <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                value={accountName}
+                onChange={e => setAccountName(e.target.value)}
+                required
+                className={inputClass}
               />
             </div>
             <div>

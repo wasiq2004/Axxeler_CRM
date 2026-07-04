@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, FileCode } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '@/components/ui/Button';
 
@@ -21,7 +21,21 @@ const InvoicesToolbar: React.FC<InvoicesToolbarProps> = ({ onSearch }) => {
             className="pl-9 pr-3 py-2 w-full sm:w-40 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
-        <Link 
+        <Link
+          to="/invoices/templates"
+          className="focus:outline-none focus:ring-2 focus:ring-primary rounded-md"
+        >
+          <Button
+            variant="outline"
+            size="md"
+            icon={FileCode}
+            iconPosition="left"
+            responsive
+          >
+            Templates
+          </Button>
+        </Link>
+        <Link
           to="/invoices/new"
           className="focus:outline-none focus:ring-2 focus:ring-primary rounded-md"
         >

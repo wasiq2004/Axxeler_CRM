@@ -1,8 +1,11 @@
 import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 import { env } from '../config/env.js';
 
-export const redisConnection = new IORedis(env.REDIS_URL, {
+// Typed as `any` so it satisfies both our ioredis and the copy bundled inside
+// bullmq (their RedisOptions/Connector types are structurally incompatible even
+// though they are the same package at runtime).
+export const redisConnection: any = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
   lazyConnect: true,
 });

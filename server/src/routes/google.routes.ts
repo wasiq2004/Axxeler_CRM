@@ -35,7 +35,7 @@ router.put(
   requireAuth,
   allowRoles('admin'),
   asyncHandler(async (req, res) => {
-    const body = z.object({ config: z.record(z.string()) }).parse(req.body);
+    const body = z.object({ config: z.record(z.string(), z.string()) }).parse(req.body);
     const record = await prisma.integrationConfig.findUnique({ where: { provider: 'google_oauth_app' } });
     const existing = (record?.config || {}) as Record<string, string>;
     const merged = { ...existing };
@@ -229,7 +229,7 @@ router.post(
 
     const body = z.object({
       row: z.number().optional(),
-      data: z.record(z.string()),
+      data: z.record(z.string(), z.string()),
     }).parse(req.body);
 
     const result = await googleService.handleSheetWebhook(token, body.data);

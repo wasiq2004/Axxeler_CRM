@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, allowRoles } from '../middleware/auth.js';
 import { metaService } from '../services/metaService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
 
 const router = Router();
 router.use(requireAuth);
+router.use(allowRoles('admin', 'manager'));
 
 router.get(
   '/',
@@ -50,18 +51,18 @@ router.post(
 );
 
 router.get('/:id', asyncHandler(async (req, res) => {
-  const template = await prisma.whatsAppTemplate.findUnique({ where: { id: req.params.id } });
+  const template = await prisma.whatsAppTemplate.findUnique({ where: { id: req.params.id as string } });
   if (!template) throw new HttpError(404, 'Template not found');
   res.json({ success: true, data: template });
 }));
 
 router.put('/:id', asyncHandler(async (req, res) => {
-  const template = await prisma.whatsAppTemplate.update({ where: { id: req.params.id }, data: req.body });
+  const template = await prisma.whatsAppTemplate.update({ where: { id: req.params.id as string }, data: req.body });
   res.json({ success: true, data: template });
 }));
 
 router.delete('/:id', asyncHandler(async (req, res) => {
-  await prisma.whatsAppTemplate.delete({ where: { id: req.params.id } });
+  await prisma.whatsAppTemplate.delete({ where: { id: req.params.id as string } });
   res.status(204).send();
 }));
 

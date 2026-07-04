@@ -14,6 +14,7 @@ const EditContactModal: React.FC<EditContactModalProps> = ({ contact }) => {
   const { editContact } = useContacts();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [tags, setTags] = useState('');
   const [source, setSource] = useState('');
 
@@ -21,6 +22,7 @@ const EditContactModal: React.FC<EditContactModalProps> = ({ contact }) => {
     if (contact) {
       setName(contact.name || '');
       setPhone(contact.phone || '');
+      setEmail(contact.customFields?.email || '');
       setTags(contact.tags ? contact.tags.join(', ') : '');
       setSource(contact.source || '');
     }
@@ -32,17 +34,25 @@ const EditContactModal: React.FC<EditContactModalProps> = ({ contact }) => {
       alert('Please fill in Name and Phone Number.');
       return;
     }
-    
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+
     if (contact) {
       const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-      editContact(contact.id, { 
-        name, 
-        phone: phone.startsWith('91') ? phone : `91${phone.replace(/\D/g, '')}`, 
+      const customFields = { ...(contact.customFields || {}) };
+      if (email.trim()) customFields.email = email.trim();
+      else delete customFields.email;
+      editContact(contact.id, {
+        name,
+        phone: phone.startsWith('91') ? phone : `91${phone.replace(/\D/g, '')}`,
         tags: tagArray,
-        source
+        source,
+        customFields,
       });
     }
-    
+
     closeEditContactModal();
   };
 
@@ -116,13 +126,24 @@ const EditContactModal: React.FC<EditContactModalProps> = ({ contact }) => {
             </div>
 
             <div>
+                <label className={labelClass}>Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className={inputClass}
+                  placeholder="e.g. john@example.com"
+                />
+            </div>
+
+            <div>
                 <label className={labelClass}>Tags</label>
-                <input 
-                  type="text" 
-                  value={tags} 
-                  onChange={e => setTags(e.target.value)} 
-                  className={inputClass} 
-                  placeholder="e.g. VIP, Follow-up" 
+                <input
+                  type="text"
+                  value={tags}
+                  onChange={e => setTags(e.target.value)}
+                  className={inputClass}
+                  placeholder="e.g. VIP, Follow-up"
                 />
                 <p className="mt-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide ml-1">Separate tags with commas</p>
             </div>

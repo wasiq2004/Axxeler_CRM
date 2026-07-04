@@ -17,5 +17,5 @@ export const NAV_LINKS = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
-export const PIPELINE_STAGES: LeadStatus[] = ['New', 'Contacted', 'Proposal', 'Negotiation', 'Closed - Won'];
+export const PIPELINE_STAGES: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Closed - Won', 'Lost'];
 export const DEAL_STAGES: DealStage[] = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Closed - Won', 'Closed - Lost'];

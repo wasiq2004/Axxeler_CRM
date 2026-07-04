@@ -18,4 +18,15 @@ export interface Invoice {
   status: InvoiceStatus;
   items: InvoiceItem[];
   taxRate: number; // as a percentage, e.g., 8 for 8%
+  templateId?: string | null;
+  customHtml?: string | null;
+}
+
+export interface InvoiceTemplate {
+  id: string;
+  name: string;
+  html: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

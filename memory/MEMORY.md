@@ -1,1 +1,2 @@
 - [Deployment & integrations](deployment-and-integrations.md) — prod topology (crm.axxeler.in, Watchtower auto-deploy), how Meta/Google get creds (DB via Settings UI), uploads served at /api/uploads, nginx ^~ /api/ rule
+- [CRM audit findings](crm-audit-findings.md) — architecture, standalone verdict, and register of flaws/mocks/incomplete features (permissions decorative, campaigns disabled, reports stuck on 2025, WhatsApp send broken, secrets committed)

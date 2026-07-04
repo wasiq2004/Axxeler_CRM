@@ -67,7 +67,7 @@ async function getAuthenticatedClient() {
 
   auth.on('tokens', async (tokens) => {
     if (tokens.access_token) {
-      const updated = { ...cfg, accessToken: tokens.access_token };
+      const updated: Record<string, string> = { ...cfg, accessToken: tokens.access_token };
       if (tokens.expiry_date) updated.tokenExpiry = String(tokens.expiry_date);
       await prisma.integrationConfig.update({
         where: { provider: 'google' },

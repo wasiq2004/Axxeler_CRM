@@ -3,12 +3,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Save, AlertCircle } from 'lucide-react';
 import type { Invoice, InvoiceItem } from '@/types';
 import { useInvoices } from '@/contexts/InvoicesContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import Button from '@/components/ui/Button';
 
 const EditInvoicePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { invoices, updateInvoice } = useInvoices();
+  const { currency } = useCurrency();
   
   const invoice = invoices.find(inv => inv.id === id);
   
@@ -270,7 +272,7 @@ const EditInvoicePage: React.FC = () => {
           <div className="w-full max-w-xs space-y-2">
             <div className="flex justify-between text-gray-600">
               <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>{currency.symbol}{subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center text-gray-600">
               <span>Tax (%)</span>
@@ -283,11 +285,11 @@ const EditInvoicePage: React.FC = () => {
             </div>
             <div className="flex justify-between text-gray-600">
               <span>Tax Amount</span>
-              <span>${taxAmount.toFixed(2)}</span>
+              <span>{currency.symbol}{taxAmount.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-800 font-bold text-lg border-t pt-2 mt-2">
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>{currency.symbol}{total.toFixed(2)}</span>
             </div>
           </div>
         </div>

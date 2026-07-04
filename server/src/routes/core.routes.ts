@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
+import { requireAuth, requirePermission, type AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { normalizeEnum, mapRecordForUi } from '../utils/enums.js';
 import { createCrudRouter } from './crudFactory.js';
@@ -54,23 +54,25 @@ router.use(
     model: 'deal',
     enumFields: ['stage'],
     searchFields: ['name', 'accountName'],
+    guards: { read: [requirePermission('viewDeals')], write: [requirePermission('editDeals')] },
     createSchema: z.object({
       name: z.string(),
-      accountId: z.string().optional(),
+      // Empty string → undefined so it isn't treated as an (invalid) FK reference.
+      accountId: z.string().optional().transform((v) => v || undefined),
       accountName: z.string(),
       stage: z.string().default('Prospecting'),
       value: z.coerce.number(),
       closeDate: z.coerce.date(),
-      ownerId: z.string().optional(),
+      ownerId: z.string().optional().transform((v) => v || undefined),
     }),
     updateSchema: z.object({
       name: z.string().optional(),
-      accountId: z.string().optional().nullable(),
+      accountId: z.string().nullish().transform((v) => v || undefined),
       accountName: z.string().optional(),
       stage: z.string().optional(),
       value: z.coerce.number().optional(),
       closeDate: z.coerce.date().optional(),
-      ownerId: z.string().optional().nullable(),
+      ownerId: z.string().nullish().transform((v) => v || undefined),
     }),
   }),
 );
@@ -108,9 +110,10 @@ router.post(
 router.post(
   '/deals/:id/stage',
   requireAuth,
+  requirePermission('editDeals'),
   asyncHandler(async (req, res) => {
     const body = z.object({ stage: z.string() }).parse(req.body);
-    const deal = await prisma.deal.update({ where: { id: req.params.id }, data: { stage: normalizeEnum(body.stage) as any } });
+    const deal = await prisma.deal.update({ where: { id: req.params.id as string }, data: { stage: normalizeEnum(body.stage) as any } });
     res.json({ success: true, data: mapRecordForUi(deal as any) });
   }),
 );
@@ -147,7 +150,7 @@ router.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     const body = z.object({ status: z.string() }).parse(req.body);
-    const task = await prisma.task.update({ where: { id: req.params.id }, data: { status: normalizeEnum(body.status) as any } });
+    const task = await prisma.task.update({ where: { id: req.params.id as string }, data: { status: normalizeEnum(body.status) as any } });
     res.json({ success: true, data: mapRecordForUi(task as any) });
   }),
 );

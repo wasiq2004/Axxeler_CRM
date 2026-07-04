@@ -8,7 +8,9 @@ import {
   hashToken,
   signAccessToken,
   signRefreshToken,
+  signResetToken,
   verifyRefreshToken,
+  verifyResetToken,
 } from '../services/tokenService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
@@ -76,7 +78,12 @@ router.post(
   '/refresh',
   asyncHandler(async (req, res) => {
     const body = z.object({ refreshToken: z.string() }).parse(req.body);
-    const payload = verifyRefreshToken(body.refreshToken);
+    let payload;
+    try {
+      payload = verifyRefreshToken(body.refreshToken);
+    } catch {
+      throw new HttpError(401, 'Invalid refresh token');
+    }
     const tokenHash = hashToken(body.refreshToken);
     const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
     if (!stored || stored.revokedAt || stored.expiresAt < new Date()) throw new HttpError(401, 'Invalid refresh token');
@@ -103,11 +110,17 @@ router.post(
     const body = z.object({ email: z.string().email() }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { email: body.email } });
     if (user) {
-      await emailService.send(
-        user.email,
-        'Reset your Axxeler CRM password',
-        `<p>A password reset was requested for ${user.name}. Wire your frontend reset page to /api/auth/reset-password.</p>`,
-      );
+      const token = signResetToken(user.id);
+      const resetUrl = `${env.CLIENT_ORIGIN.replace(/\/$/, '')}/#/reset-password?token=${encodeURIComponent(token)}`;
+      // Email if configured; always log so the flow works in dev without Resend.
+      console.log(`[auth] Password reset link for ${user.email}: ${resetUrl}`);
+      await emailService
+        .send(
+          user.email,
+          'Reset your Axxeler CRM password',
+          `<p>Hi ${user.name},</p><p>A password reset was requested for your Axxeler CRM account. Click the link below to choose a new password. This link expires in 30 minutes.</p><p><a href="${resetUrl}">Reset your password</a></p><p>If you didn't request this, you can ignore this email.</p>`,
+        )
+        .catch((err) => console.error('[auth] Failed to send reset email:', err));
     }
     res.json({ success: true, message: 'If the email exists, reset instructions have been sent.' });
   }),
@@ -115,8 +128,23 @@ router.post(
 
 router.post(
   '/reset-password',
-  asyncHandler(async (_req, res) => {
-    throw new HttpError(501, 'Password reset tokens are scaffolded; configure email template and reset-token persistence before enabling.');
+  asyncHandler(async (req, res) => {
+    const body = z.object({ token: z.string().min(1), newPassword: z.string().min(6, 'Password must be at least 6 characters') }).parse(req.body);
+    let userId: string;
+    try {
+      userId = verifyResetToken(body.token).sub;
+    } catch {
+      throw new HttpError(400, 'This reset link is invalid or has expired');
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new HttpError(400, 'This reset link is invalid or has expired');
+
+    const passwordHash = await bcrypt.hash(body.newPassword, 12);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    // Invalidate all existing sessions after a reset.
+    await prisma.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+
+    res.json({ success: true, message: 'Password has been reset. You can now log in.' });
   }),
 );
 
@@ -137,6 +165,8 @@ router.post(
 
     const passwordHash = await bcrypt.hash(body.newPassword, 12);
     await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    // Invalidate every other session so a stolen session can't outlive the change.
+    await prisma.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
 
     res.json({ success: true, message: 'Password updated successfully' });
   }),

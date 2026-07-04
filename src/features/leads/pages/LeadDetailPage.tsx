@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, MoreVertical, Star, Mail, Phone, Calendar, ArrowRight } from 'lucide-react';
 import LeadInfoCard from '@/features/leads/components/LeadInfoCard';
@@ -14,11 +14,16 @@ import { Lead } from '@/types';
 const LeadDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { leads } = useLeads();
-  const { notes, activities } = useTimeline();
+  const { notes, activities, loadLeadTimeline } = useTimeline();
   const { isEditLeadModalOpen, openEditLeadModal } = useUI();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showConvert, setShowConvert] = useState(false);
   const lead = leads.find(l => l.id === id);
+
+  // Load this lead's notes + activities whenever the id changes.
+  useEffect(() => {
+    if (id) loadLeadTimeline(id);
+  }, [id, loadLeadTimeline]);
 
   if (!lead) {
     return (

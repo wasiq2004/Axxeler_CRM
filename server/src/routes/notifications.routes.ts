@@ -42,7 +42,7 @@ router.put(
 router.put(
   '/:id/read',
   asyncHandler(async (req, res) => {
-    const notification = await prisma.notification.update({ where: { id: req.params.id }, data: { isRead: true } });
+    const notification = await prisma.notification.update({ where: { id: req.params.id as string }, data: { isRead: true } });
     res.json({ success: true, data: notification });
   }),
 );
@@ -50,7 +50,7 @@ router.put(
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
-    await prisma.notification.delete({ where: { id: req.params.id } });
+    await prisma.notification.delete({ where: { id: req.params.id as string } });
     res.status(204).send();
   }),
 );

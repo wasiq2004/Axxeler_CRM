@@ -80,8 +80,8 @@ const CreateInvoicePage: React.FC = () => {
   };
 
   const handleSave = () => {
+    // invoiceNumber is assigned by the server to guarantee uniqueness.
     addInvoice({
-      invoiceNumber: `INV-${String(Date.now()).slice(-4)}`,
       clientName: formData.clientName,
       clientCompany: formData.clientCompany,
       clientEmail: formData.clientEmail,

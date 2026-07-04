@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -13,6 +13,9 @@ type CrudConfig = {
   searchFields?: string[];
   createSchema?: z.ZodTypeAny;
   updateSchema?: z.ZodTypeAny;
+  // Optional authorization guards inserted after requireAuth. `read` gates the
+  // list/detail GETs; `write` gates create/update/delete.
+  guards?: { read?: RequestHandler[]; write?: RequestHandler[] };
 };
 
 const prismaAny = prisma as any;
@@ -30,8 +33,12 @@ export const createCrudRouter = (config: CrudConfig) => {
   const delegate = prismaAny[config.model];
   if (!delegate) throw new Error(`Unknown Prisma model: ${config.model}`);
 
+  const read = config.guards?.read ?? [];
+  const write = config.guards?.write ?? [];
+
   router.get(
     '/',
+    ...read,
     asyncHandler(async (req, res) => {
       const page = Math.max(Number(req.query.page || 1), 1);
       const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 100);
@@ -47,6 +54,7 @@ export const createCrudRouter = (config: CrudConfig) => {
 
   router.post(
     '/',
+    ...write,
     asyncHandler(async (req, res) => {
       const parsed = config.createSchema ? config.createSchema.parse(req.body) : req.body;
       const data = mapEnumsForDb(parsed, config.enumFields || []);
@@ -57,8 +65,9 @@ export const createCrudRouter = (config: CrudConfig) => {
 
   router.get(
     '/:id',
+    ...read,
     asyncHandler(async (req, res) => {
-      const item = await delegate.findUnique({ where: { id: req.params.id }, include: config.include });
+      const item = await delegate.findUnique({ where: { id: req.params.id as string }, include: config.include });
       if (!item) throw new HttpError(404, 'Resource not found');
       res.json({ success: true, data: mapRecordForUi(item) });
     }),
@@ -66,18 +75,20 @@ export const createCrudRouter = (config: CrudConfig) => {
 
   router.put(
     '/:id',
+    ...write,
     asyncHandler(async (req, res) => {
       const parsed = config.updateSchema ? config.updateSchema.parse(req.body) : req.body;
       const data = mapEnumsForDb(parsed, config.enumFields || []);
-      const updated = await delegate.update({ where: { id: req.params.id }, data, include: config.include });
+      const updated = await delegate.update({ where: { id: req.params.id as string }, data, include: config.include });
       res.json({ success: true, data: mapRecordForUi(updated) });
     }),
   );
 
   router.delete(
     '/:id',
+    ...write,
     asyncHandler(async (req, res) => {
-      await delegate.delete({ where: { id: req.params.id } });
+      await delegate.delete({ where: { id: req.params.id as string } });
       res.status(204).send();
     }),
   );

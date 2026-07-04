@@ -117,7 +117,7 @@ const LoginPage: React.FC = () => {
                   <div className="space-y-2 animate-fadeIn delay-200">
                     <div className="flex justify-between items-center px-2">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Password</label>
-                      <button type="button" className="text-[9px] font-black text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-widest leading-none">Forgot Password?</button>
+                      <Link to="/forgot-password" className="text-[9px] font-black text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-widest leading-none">Forgot Password?</Link>
                     </div>
                     <div className="relative group">
                       <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 group-focus-within:text-blue-600 transition-all" />

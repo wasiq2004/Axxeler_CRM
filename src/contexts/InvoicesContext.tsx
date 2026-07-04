@@ -6,7 +6,7 @@ import type { Invoice } from '../types';
 interface InvoicesContextType {
   invoices: Invoice[];
   isLoading: boolean;
-  addInvoice: (invoice: Omit<Invoice, 'id'>) => Promise<void>;
+  addInvoice: (invoice: Omit<Invoice, 'id' | 'invoiceNumber'> & { invoiceNumber?: string }) => Promise<void>;
   updateInvoice: (id: string, updatedInvoiceData: Partial<Invoice>) => Promise<void>;
   deleteInvoice: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -37,7 +37,7 @@ export const InvoicesProvider: React.FC<{ children: ReactNode }> = ({ children }
     else setInvoices([]);
   }, [isAuthenticated, fetchInvoices]);
 
-  const addInvoice = async (newInvoiceData: Omit<Invoice, 'id'>) => {
+  const addInvoice = async (newInvoiceData: Omit<Invoice, 'id' | 'invoiceNumber'> & { invoiceNumber?: string }) => {
     const res = await crmApi.createInvoice(newInvoiceData);
     setInvoices(prev => [res.data, ...prev]);
   };

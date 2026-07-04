@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, allowRoles } from '../middleware/auth.js';
 import { emailService } from '../services/emailService.js';
 import { razorpayService } from '../services/razorpayService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -12,6 +12,9 @@ import { normalizeEnum, presentEnum } from '../utils/enums.js';
 
 const router = Router();
 router.use(requireAuth);
+// Invoices are finance data — restrict to admins and managers (mirrors the
+// client route guard). Team members are blocked at the API, not just the UI.
+router.use(allowRoles('admin', 'manager'));
 
 const include = { items: true, payments: true };
 
@@ -31,7 +34,8 @@ const getCompanyBranding = async () => {
 };
 
 const invoiceSchema = z.object({
-  invoiceNumber: z.string(),
+  // Optional on create — the server assigns a unique sequential number.
+  invoiceNumber: z.string().optional(),
   clientName: z.string(),
   clientCompany: z.string(),
   clientEmail: z.string().email(),
@@ -39,6 +43,8 @@ const invoiceSchema = z.object({
   dueDate: z.coerce.date(),
   status: z.string().default('Draft'),
   taxRate: z.coerce.number().default(0),
+  templateId: z.string().nullish().transform((v) => v || undefined),
+  customHtml: z.string().nullish().transform((v) => v ?? undefined),
   items: z.array(z.object({ id: z.string().optional(), description: z.string(), quantity: z.coerce.number().int(), price: z.coerce.number() })).default([]),
 });
 
@@ -77,19 +83,39 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const body = invoiceSchema.parse(req.body);
-    const invoice = await prisma.invoice.create({
-      data: {
-        ...body,
-        status: normalizeEnum(body.status) as any,
-        items: { create: body.items.map(({ id: _id, ...item }) => item) },
-      },
-      include,
-    });
+    // Assign a unique, sequential invoice number server-side. Retry on the rare
+    // race where two invoices grab the same number concurrently.
+    let invoice: Awaited<ReturnType<typeof prisma.invoice.create>> | undefined;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const invoiceNumber = body.invoiceNumber?.trim() || `INV-${String((await prisma.invoice.count()) + 1 + attempt).padStart(4, '0')}`;
+      try {
+        invoice = await prisma.invoice.create({
+          data: {
+            ...body,
+            invoiceNumber,
+            status: normalizeEnum(body.status) as any,
+            items: { create: body.items.map(({ id: _id, ...item }) => item) },
+          },
+          include,
+        });
+        break;
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          // A client-supplied number that collides is a real error; an auto-number collision just retries.
+          if (body.invoiceNumber?.trim()) throw new HttpError(409, 'Invoice number already exists');
+          continue;
+        }
+        throw err;
+      }
+    }
+    if (!invoice) throw new HttpError(500, 'Could not allocate a unique invoice number, please retry');
     const presented = presentInvoice(invoice);
-    // Auto-send invoice email to client (fire-and-forget)
-    emailService.sendInvoiceEmail(presented).catch((err: Error) =>
-      console.error('[invoice-email] Failed to send invoice email:', err.message),
-    );
+    // Only email the client for non-draft invoices — drafts shouldn't reach them.
+    if (invoice.status !== 'Draft') {
+      emailService.sendInvoiceEmail(presented).catch((err: Error) =>
+        console.error('[invoice-email] Failed to send invoice email:', err.message),
+      );
+    }
     res.status(201).json({ success: true, data: presented });
   }),
 );
@@ -97,7 +123,7 @@ router.post(
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
-    const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include });
+    const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id as string }, include });
     if (!invoice) throw new HttpError(404, 'Invoice not found');
     res.json({ success: true, data: presentInvoice(invoice) });
   }),
@@ -109,10 +135,10 @@ router.put(
     const body = invoiceSchema.partial().parse(req.body);
     const invoice = await prisma.$transaction(async (tx) => {
       if (body.items) {
-        await tx.invoiceItem.deleteMany({ where: { invoiceId: req.params.id } });
+        await tx.invoiceItem.deleteMany({ where: { invoiceId: req.params.id as string } });
       }
       return tx.invoice.update({
-        where: { id: req.params.id },
+        where: { id: req.params.id as string },
         data: {
           invoiceNumber: body.invoiceNumber,
           clientName: body.clientName,
@@ -122,6 +148,8 @@ router.put(
           dueDate: body.dueDate,
           status: body.status ? (normalizeEnum(body.status) as any) : undefined,
           taxRate: body.taxRate,
+          templateId: body.templateId,
+          customHtml: body.customHtml,
           items: body.items ? { create: body.items.map(({ id: _id, ...item }) => item) } : undefined,
         },
         include,
@@ -134,7 +162,7 @@ router.put(
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
-    await prisma.invoice.delete({ where: { id: req.params.id } });
+    await prisma.invoice.delete({ where: { id: req.params.id as string } });
     res.status(204).send();
   }),
 );
@@ -143,7 +171,7 @@ router.post(
   '/:id/status',
   asyncHandler(async (req, res) => {
     const body = z.object({ status: z.string() }).parse(req.body);
-    const invoice = await prisma.invoice.update({ where: { id: req.params.id }, data: { status: normalizeEnum(body.status) as any }, include });
+    const invoice = await prisma.invoice.update({ where: { id: req.params.id as string }, data: { status: normalizeEnum(body.status) as any }, include });
     res.json({ success: true, data: presentInvoice(invoice) });
   }),
 );
@@ -151,7 +179,7 @@ router.post(
 router.post(
   '/:id/send',
   asyncHandler(async (req, res) => {
-    const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include });
+    const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id as string }, include });
     if (!invoice) throw new HttpError(404, 'Invoice not found');
     await emailService.send(invoice.clientEmail, `Invoice ${invoice.invoiceNumber}`, `<p>Your invoice ${invoice.invoiceNumber} total is ${totalFor(invoice).toFixed(2)}.</p>`);
     res.json({ success: true });
@@ -267,11 +295,11 @@ router.post(
   '/:id/payments/razorpay/order',
   asyncHandler(async (req, res) => {
     const body = z.object({ currency: z.string().default('INR') }).parse(req.body);
-    const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id }, include });
+    const invoice = await prisma.invoice.findUnique({ where: { id: req.params.id as string }, include });
     if (!invoice) throw new HttpError(404, 'Invoice not found');
     const order = await razorpayService.createOrder(totalFor(invoice), body.currency, invoice.invoiceNumber);
     await prisma.payment.create({
-      data: { invoiceId: invoice.id, provider: 'razorpay', providerOrderId: order.id, amount: totalFor(invoice), currency: body.currency, status: 'created', rawPayload: order },
+      data: { invoiceId: invoice.id, provider: 'razorpay', providerOrderId: order.id, amount: totalFor(invoice), currency: body.currency, status: 'created', rawPayload: order as any },
     });
     res.json({ success: true, data: order });
   }),
@@ -282,9 +310,9 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = z.object({ razorpay_order_id: z.string(), razorpay_payment_id: z.string(), razorpay_signature: z.string() }).parse(req.body);
     razorpayService.verifySignature(body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature);
-    const invoice = await prisma.invoice.update({ where: { id: req.params.id }, data: { status: 'Paid' }, include });
+    const invoice = await prisma.invoice.update({ where: { id: req.params.id as string }, data: { status: 'Paid' }, include });
     await prisma.payment.updateMany({
-      where: { invoiceId: req.params.id, providerOrderId: body.razorpay_order_id },
+      where: { invoiceId: req.params.id as string, providerOrderId: body.razorpay_order_id },
       data: { providerPaymentId: body.razorpay_payment_id, status: 'paid', rawPayload: body },
     });
     res.json({ success: true, data: presentInvoice(invoice) });

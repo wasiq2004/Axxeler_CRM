@@ -8,7 +8,7 @@ interface RevenueChartProps {
     year?: number;
 }
 
-const RevenueChart: React.FC<RevenueChartProps> = ({ quarter, year = 2025 }) => {
+const RevenueChart: React.FC<RevenueChartProps> = ({ quarter, year = new Date().getFullYear() }) => {
     const { invoices } = useInvoices();
     const { currency } = useCurrency();
 

@@ -24,8 +24,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    // If user doesn't have the required role, redirect to dashboard
+  if (allowedRoles && (!user || !allowedRoles.includes(user.role))) {
+    // No role yet (still hydrating) or role not permitted — send to dashboard
+    // rather than rendering the restricted page.
     return <Navigate to="/" replace />;
   }
 
