@@ -33,3 +33,19 @@ export const verifyResetToken = (token: string): { sub: string } => {
   if (decoded.purpose !== 'password_reset') throw new Error('Invalid reset token');
   return { sub: decoded.sub };
 };
+
+// Signed, short-lived OAuth `state` value. Because the `oauth-url` endpoints that
+// mint it are admin-gated, an attacker can't forge a valid state, which mitigates
+// callback CSRF (linking the org's integration to an attacker's account).
+export const signOAuthState = (provider: string) =>
+  jwt.sign({ purpose: 'oauth_state', provider }, env.JWT_ACCESS_SECRET, { expiresIn: '10m' } as SignOptions);
+
+export const verifyOAuthState = (token: string | undefined, provider: string): boolean => {
+  if (!token) return false;
+  try {
+    const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET) as { purpose?: string; provider?: string };
+    return decoded.purpose === 'oauth_state' && decoded.provider === provider;
+  } catch {
+    return false;
+  }
+};

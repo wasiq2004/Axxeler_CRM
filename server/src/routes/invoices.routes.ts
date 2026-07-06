@@ -43,8 +43,10 @@ const invoiceSchema = z.object({
   dueDate: z.coerce.date(),
   status: z.string().default('Draft'),
   taxRate: z.coerce.number().default(0),
-  templateId: z.string().nullish().transform((v) => v || undefined),
-  customHtml: z.string().nullish().transform((v) => v ?? undefined),
+  // Preserve explicit null so the user can clear a template back to "Standard";
+  // `undefined` (field omitted) means "leave unchanged" on update.
+  templateId: z.string().nullable().optional(),
+  customHtml: z.string().nullable().optional(),
   items: z.array(z.object({ id: z.string().optional(), description: z.string(), quantity: z.coerce.number().int(), price: z.coerce.number() })).default([]),
 });
 

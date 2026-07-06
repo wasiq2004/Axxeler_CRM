@@ -4,6 +4,7 @@ import { MoreHorizontal, GripVertical, Edit, Eye, Trash2, Plus, ChevronRight } f
 import type { Lead, LeadStatus } from '../../../types';
 import { useLeads } from '../../../contexts/LeadsContext';
 import { useUI } from '../../../contexts/UIContext';
+import { useCan } from '@/hooks/useCan';
 import { PIPELINE_STAGES } from '../../../constants';
 
 // Create a context to share the new lead status between components
@@ -34,24 +35,32 @@ interface LeadCardProps {
 const LeadCard: React.FC<LeadCardProps> = ({ lead, onSelectLead }) => {
   const { openEditLeadModal } = useUI();
   const { deleteLead } = useLeads();
+  const can = useCan();
+  const canEdit = can('editLeads');
+  const canDelete = can('deleteLeads');
   const [showActions, setShowActions] = useState(false);
-  
+
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    // Only allow drag-to-restage if the user may edit leads.
+    if (!canEdit) { e.preventDefault(); return; }
     e.dataTransfer.setData('leadId', lead.id);
   };
-  
+
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onSelectLead(lead);
     openEditLeadModal();
   };
-  
-  const handleDeleteClick = (e: React.MouseEvent) => {
+
+  const handleDeleteClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete the lead ${lead.firstName} ${lead.lastName}?`)) {
-      deleteLead(lead.id);
-    }
     setShowActions(false);
+    if (!window.confirm(`Are you sure you want to delete the lead ${lead.firstName} ${lead.lastName}?`)) return;
+    try {
+      await deleteLead(lead.id);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete lead.');
+    }
   };
   
   return (
@@ -92,6 +101,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onSelectLead }) => {
                   <Eye className="w-3.5 h-3.5 mr-2 text-gray-400" />
                   View Details
                 </Link>
+                {canEdit && (
                 <button
                   onClick={handleEditClick}
                   className="flex items-center w-full text-left px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
@@ -100,6 +110,9 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onSelectLead }) => {
                   <Edit className="w-3.5 h-3.5 mr-2 text-gray-400" />
                   Quick Edit
                 </button>
+                )}
+                {canDelete && (
+                <>
                 <div className="my-1 border-t border-gray-50"></div>
                 <button
                   onClick={handleDeleteClick}
@@ -109,6 +122,8 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onSelectLead }) => {
                   <Trash2 className="w-3.5 h-3.5 mr-2" />
                   Remove Lead
                 </button>
+                </>
+                )}
               </div>
             </div>
           )}
@@ -145,9 +160,12 @@ interface PipelineColumnProps {
 
 const PipelineColumn: React.FC<PipelineColumnProps> = ({ status, leads, onSelectLead, onCreateLead }) => {
   const { updateLeadStatus } = useLeads();
+  const can = useCan();
+  const canEdit = can('editLeads');
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!canEdit) return;
     e.preventDefault();
     setIsDragOver(true);
   };
@@ -156,13 +174,18 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({ status, leads, onSelect
     setIsDragOver(false);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    setIsDragOver(false);
+    if (!canEdit) return;
     const leadId = e.dataTransfer.getData('leadId');
     if (leadId) {
-      updateLeadStatus(leadId, status);
+      try {
+        await updateLeadStatus(leadId, status);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to update lead status.');
+      }
     }
-    setIsDragOver(false);
   };
 
 
@@ -185,6 +208,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({ status, leads, onSelect
       </div>
       <div className="overflow-y-auto px-2 flex-1 scrollbar-hide">
         {leads.map(lead => <LeadCard key={lead.id} lead={lead} onSelectLead={onSelectLead} />)}
+        {canEdit && (
         <div className="mt-2 mb-4">
           <button
             onClick={() => onCreateLead(status)}
@@ -193,6 +217,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({ status, leads, onSelect
             + Add Lead
           </button>
         </div>
+        )}
       </div>
     </div>
   );

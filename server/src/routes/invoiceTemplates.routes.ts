@@ -7,7 +7,8 @@ import { HttpError } from '../utils/httpError.js';
 
 const router = Router();
 router.use(requireAuth);
-router.use(allowRoles('admin', 'manager'));
+// Invoice management (incl. templates) is admin-only in the client, so match that.
+router.use(allowRoles('admin'));
 
 const templateSchema = z.object({
   name: z.string().min(1),

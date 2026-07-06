@@ -36,14 +36,19 @@ const CreateLeadModal: React.FC<CreateLeadModalProps> = ({ defaultStatus }) => {
     }
   }, [isCreateLeadModalOpen, defaultStatus, user]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName || !lastName || !email) {
       alert('Please fill in First Name, Last Name, and Email.');
       return;
     }
-    createLead({ firstName, lastName, company, email, phone, ownerId }, status);
-    
+    try {
+      await createLead({ firstName, lastName, company, email, phone, ownerId }, status);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to create lead.');
+      return; // keep the modal open with the entered data
+    }
+
     setFirstName('');
     setLastName('');
     setCompany('');

@@ -36,7 +36,7 @@ export const TasksProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const fetchTasks = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await crmApi.getTasks();
+      const res = await crmApi.getTasks({ all: true });
       setTasks(res.data || []);
     } catch {
       setTasks([]);

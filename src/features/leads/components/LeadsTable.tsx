@@ -5,6 +5,7 @@ import { ChevronsUpDown, ChevronUp, ChevronDown, MoreHorizontal, Edit, Trash2, E
 import { useUI } from '../../../contexts/UIContext';
 import { useLeads } from '../../../contexts/LeadsContext';
 import { useApi } from '../../../contexts/ApiContext';
+import { useCan } from '@/hooks/useCan';
 
 interface LeadsTableProps {
   leads: Lead[];
@@ -28,6 +29,9 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, requestSort, sortConfig 
   const { openEditLeadModal } = useUI();
   const { deleteLead, refresh } = useLeads();
   const { crmApi } = useApi();
+  const can = useCan();
+  const canEdit = can('editLeads');
+  const canDelete = can('deleteLeads');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showActions, setShowActions] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -45,12 +49,15 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, requestSort, sortConfig 
     setShowActions(null);
   };
 
-  const handleDeleteClick = (lead: Lead) => {
-    if (window.confirm(`Delete lead ${lead.firstName} ${lead.lastName}?`)) {
-      deleteLead(lead.id);
-      setSelectedIds(prev => { const next = new Set(prev); next.delete(lead.id); return next; });
-    }
+  const handleDeleteClick = async (lead: Lead) => {
     setShowActions(null);
+    if (!window.confirm(`Delete lead ${lead.firstName} ${lead.lastName}?`)) return;
+    try {
+      await deleteLead(lead.id);
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(lead.id); return next; });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete lead.');
+    }
   };
 
   const allSelected = leads.length > 0 && leads.every(l => selectedIds.has(l.id));
@@ -111,6 +118,7 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, requestSort, sortConfig 
             <span className="bg-white/20 px-2 py-0.5 rounded-md text-xs font-black">{selectedIds.size}</span>
           )}
           <span className="flex-1">{selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} selected</span>
+          {canEdit && (
           <div className="relative">
             <button
               onClick={() => setShowStatusMenu(v => !v)}
@@ -134,6 +142,8 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, requestSort, sortConfig 
               </div>
             )}
           </div>
+          )}
+          {canDelete && (
           <button
             onClick={handleBulkDelete}
             disabled={bulkLoading}
@@ -141,6 +151,7 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, requestSort, sortConfig 
           >
             <Trash2 className="w-3 h-3" /> Delete
           </button>
+          )}
           <button onClick={clearSelection} className="p-1 hover:bg-white/10 rounded-lg transition-colors">
             <X className="w-4 h-4" />
           </button>
@@ -229,6 +240,7 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, requestSort, sortConfig 
                         >
                           <Eye className="w-4 h-4 mr-2" /> View
                         </Link>
+                        {canEdit && (
                         <button
                           onClick={() => handleEditClick(lead)}
                           className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -236,6 +248,8 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, requestSort, sortConfig 
                         >
                           <Edit className="w-4 h-4 mr-2" /> Edit
                         </button>
+                        )}
+                        {canDelete && (
                         <button
                           onClick={() => handleDeleteClick(lead)}
                           className="flex items-center w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
@@ -243,6 +257,7 @@ const LeadsTable: React.FC<LeadsTableProps> = ({ leads, requestSort, sortConfig 
                         >
                           <Trash2 className="w-4 h-4 mr-2" /> Delete
                         </button>
+                        )}
                       </div>
                     </div>
                   )}

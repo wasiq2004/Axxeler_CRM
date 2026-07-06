@@ -6,6 +6,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
 import { env } from '../config/env.js';
 import { googleService, DEFAULT_LEAD_MAPPING, DEFAULT_CONTACT_MAPPING } from '../services/googleService.js';
+import { signOAuthState, verifyOAuthState } from '../services/tokenService.js';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ const MASKED = '••••••••';
 router.get(
   '/oauth-app-config',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (_req, res) => {
     const record = await prisma.integrationConfig.findUnique({ where: { provider: 'google_oauth_app' } });
     const cfg = (record?.config || {}) as Record<string, string>;
@@ -57,9 +59,10 @@ router.put(
 router.get(
   '/oauth-url',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (_req, res) => {
     try {
-      const url = await googleService.getAuthUrl('google-oauth');
+      const url = await googleService.getAuthUrl(signOAuthState('google'));
       res.json({ success: true, data: { url } });
     } catch (err: any) {
       throw new HttpError(400, err.message || 'Google OAuth not configured. Add Client ID and Secret first.');
@@ -71,12 +74,15 @@ router.get(
 router.get(
   '/callback',
   asyncHandler(async (req, res) => {
-    const { code, error, error_description } = req.query as Record<string, string>;
+    const { code, error, error_description, state } = req.query as Record<string, string>;
     const clientOrigin = env.CLIENT_ORIGIN || 'http://localhost:3000';
 
     if (error || !code) {
       const msg = encodeURIComponent(error_description || error || 'Google OAuth failed');
       return res.redirect(`${clientOrigin}/settings?google_error=${msg}`);
+    }
+    if (!verifyOAuthState(state, 'google')) {
+      return res.redirect(`${clientOrigin}/settings?google_error=${encodeURIComponent('Invalid or expired OAuth state')}`);
     }
 
     try {
@@ -106,6 +112,7 @@ router.get(
 router.get(
   '/connection',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (_req, res) => {
     const conn = await googleService.getConnection();
     res.json({ success: true, data: conn });
@@ -115,6 +122,7 @@ router.get(
 router.delete(
   '/disconnect',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (_req, res) => {
     await prisma.integrationConfig.upsert({
       where: { provider: 'google' },
@@ -130,6 +138,7 @@ router.delete(
 router.get(
   '/spreadsheets',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (_req, res) => {
     const files = await googleService.listSpreadsheets();
     res.json({ success: true, data: files });
@@ -139,6 +148,7 @@ router.get(
 router.get(
   '/spreadsheets/:id/sheets',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (req, res) => {
     const names = await googleService.getSheetNames(req.params.id as string);
     res.json({ success: true, data: names });
@@ -150,6 +160,7 @@ router.get(
 router.get(
   '/sync-configs',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (_req, res) => {
     const configs = await prisma.googleSyncConfig.findMany({ orderBy: { createdAt: 'asc' } });
     res.json({ success: true, data: configs });
@@ -159,6 +170,7 @@ router.get(
 router.put(
   '/sync-configs/:entityType',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (req, res) => {
     const entityType = req.params.entityType as string;
     if (!['leads', 'contacts'].includes(entityType)) throw new HttpError(400, 'entityType must be leads or contacts');
@@ -199,6 +211,7 @@ router.put(
 router.delete(
   '/sync-configs/:entityType',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (req, res) => {
     const entityType = req.params.entityType as string;
     await prisma.googleSyncConfig.deleteMany({ where: { entityType } });
@@ -211,6 +224,7 @@ router.delete(
 router.post(
   '/sync-now/:entityType',
   requireAuth,
+  allowRoles('admin'),
   asyncHandler(async (req, res) => {
     const entityType = req.params.entityType as string;
     if (!['leads', 'contacts'].includes(entityType)) throw new HttpError(400, 'entityType must be leads or contacts');

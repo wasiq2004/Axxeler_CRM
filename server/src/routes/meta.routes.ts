@@ -2,11 +2,12 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, allowRoles } from '../middleware/auth.js';
 import { metaService, MetaCreds } from '../services/metaService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
 import { env } from '../config/env.js';
+import { signOAuthState, verifyOAuthState } from '../services/tokenService.js';
 
 const router = Router();
 
@@ -29,12 +30,15 @@ async function _getMetaCreds(): Promise<MetaCreds> {
 router.get(
   '/callback',
   asyncHandler(async (req, res) => {
-    const { code, error, error_description } = req.query as Record<string, string>;
+    const { code, error, error_description, state } = req.query as Record<string, string>;
     const clientOrigin = env.CLIENT_ORIGIN || 'http://localhost:3000';
 
     if (error || !code) {
       const msg = encodeURIComponent(error_description || error || 'No code returned from Meta');
       return res.redirect(`${clientOrigin}/ads-sync?meta_error=${msg}`);
+    }
+    if (!verifyOAuthState(state, 'meta')) {
+      return res.redirect(`${clientOrigin}/ads-sync?meta_error=${encodeURIComponent('Invalid or expired OAuth state')}`);
     }
 
     try {
@@ -141,6 +145,9 @@ router.post(
 // ─── AUTHENTICATED ROUTES ──────────────────────────────────────────────────────
 
 router.use(requireAuth);
+// Ads/integration management is for admins and managers only (mirrors the
+// ads-sync client route). team_members can't connect/import/enumerate Meta data.
+router.use(allowRoles('admin', 'manager'));
 
 // Get current Meta connection status (no token returned to client)
 router.get(
@@ -161,7 +168,7 @@ router.get(
   asyncHandler(async (_req, res) => {
     const creds = await _getMetaCreds();
     if (!creds.appId) throw new HttpError(400, 'Meta App ID is not configured. Go to Settings → Integrations to add your Meta credentials.');
-    const state = crypto.randomBytes(16).toString('hex');
+    const state = signOAuthState('meta');
     const url = await metaService.getOAuthUrl(state, creds);
     res.json({ success: true, data: { url, state } });
   }),

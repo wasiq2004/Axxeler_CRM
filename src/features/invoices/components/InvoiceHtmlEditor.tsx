@@ -1,5 +1,5 @@
 import React from 'react';
-import { MERGE_FIELDS, renderInvoiceTemplate } from '@/features/invoices/utils/invoiceTemplate';
+import { MERGE_FIELDS, renderInvoiceTemplate, sanitizeInvoiceHtml } from '@/features/invoices/utils/invoiceTemplate';
 
 interface InvoiceHtmlEditorProps {
   html: string;
@@ -31,7 +31,7 @@ const InvoiceHtmlEditor: React.FC<InvoiceHtmlEditorProps> = ({ html, onChange, p
     });
   };
 
-  const renderedHtml = renderInvoiceTemplate(html, previewCtx);
+  const renderedHtml = sanitizeInvoiceHtml(renderInvoiceTemplate(html, previewCtx));
 
   return (
     <div className="space-y-4">

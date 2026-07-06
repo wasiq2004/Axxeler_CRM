@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import { useLeads } from '@/contexts/LeadsContext';
 import { useTimeline } from '@/contexts/TimelineContext';
 import { useUI } from '@/contexts/UIContext';
+import { useCan } from '@/hooks/useCan';
 import { Lead } from '@/types';
 
 const LeadDetailPage: React.FC = () => {
@@ -16,6 +17,8 @@ const LeadDetailPage: React.FC = () => {
   const { leads } = useLeads();
   const { notes, activities, loadLeadTimeline } = useTimeline();
   const { isEditLeadModalOpen, openEditLeadModal } = useUI();
+  const can = useCan();
+  const canEdit = can('editLeads');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showConvert, setShowConvert] = useState(false);
   const lead = leads.find(l => l.id === id);
@@ -81,7 +84,7 @@ const LeadDetailPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {lead.status !== 'Closed - Won' && (
+            {canEdit && lead.status !== 'Closed - Won' && (
               <Button
                 variant="primary"
                 size="md"
@@ -92,15 +95,17 @@ const LeadDetailPage: React.FC = () => {
                 Convert
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="md"
-              icon={Edit}
-              onClick={handleEditClick}
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
-            >
-              Edit
-            </Button>
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="md"
+                icon={Edit}
+                onClick={handleEditClick}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Edit
+              </Button>
+            )}
           </div>
         </div>
       </div>

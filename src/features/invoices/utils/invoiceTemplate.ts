@@ -1,4 +1,11 @@
+import DOMPurify from 'dompurify';
 import type { Invoice } from '@/types';
+
+// Sanitize author-supplied invoice HTML before it is ever injected into the DOM
+// (preview panels) or captured for a PDF. Strips <script>, on* handlers and
+// javascript: URLs while keeping normal invoice markup + inline styles.
+export const sanitizeInvoiceHtml = (html: string): string =>
+  DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
 
 // ── Merge fields available to invoice HTML templates ──────────────────────────
 // Authors reference these as {{fieldName}} in their HTML.

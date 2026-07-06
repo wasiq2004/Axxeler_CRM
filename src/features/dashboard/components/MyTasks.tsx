@@ -16,7 +16,7 @@ const MyTasks: React.FC = () => {
                 {pendingTasks.map(task => (
                     <div key={task.id} className="flex justify-between items-center text-sm">
                         <span className="text-text-main">{task.title}</span>
-                        <span className="text-text-light">{task.dueDate}</span>
+                        <span className="text-text-light">{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : ''}</span>
                     </div>
                 ))}
                  <Link to="/tasks" className="text-primary text-sm font-semibold hover:underline pt-2 inline-block">View All Tasks</Link>

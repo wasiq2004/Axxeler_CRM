@@ -1,5 +1,6 @@
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { sanitizeInvoiceHtml } from './invoiceTemplate';
 
 // Render already-populated invoice HTML into an A4 PDF, entirely in the browser.
 // The HTML is rendered off-screen, captured to a canvas, then sliced across as
@@ -12,7 +13,7 @@ export const generateInvoicePdf = async (html: string, filename: string): Promis
   host.style.top = '0';
   host.style.width = '800px';
   host.style.background = '#ffffff';
-  host.innerHTML = html;
+  host.innerHTML = sanitizeInvoiceHtml(html);
   document.body.appendChild(host);
 
   try {

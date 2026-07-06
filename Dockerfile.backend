@@ -8,7 +8,8 @@ COPY server/ ./server/
 COPY prisma/ ./prisma/
 
 RUN node_modules/.bin/prisma generate
-RUN node_modules/.bin/tsc -p server/tsconfig.json || true
+# Fail the image build if the server has type errors (no more silent `|| true`).
+RUN node_modules/.bin/tsc -p server/tsconfig.json
 
 COPY server/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh

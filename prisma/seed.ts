@@ -14,7 +14,9 @@ async function main() {
   for (const user of users) {
     await prisma.user.upsert({
       where:  { email: user.email },
-      update: { name: user.name, role: user.role, avatar: user.avatar },
+      // No-op on update: the seed runs on every boot, so it must not overwrite
+      // in-app changes (renames/role changes) to the seeded accounts.
+      update: {},
       create: {
         id:           user.id,
         name:         user.name,

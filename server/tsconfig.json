@@ -6,7 +6,7 @@
     "lib": ["ES2022"],
     "strict": false,
     "noImplicitAny": false,
-    "noEmitOnError": false,
+    "noEmitOnError": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,

@@ -10,7 +10,7 @@ export interface User {
     email: string;
     avatar: string;
     role: UserRole;
-    permissions?: string[];
+    permissions?: Record<string, boolean>;
 }
 
 export interface AdLead {

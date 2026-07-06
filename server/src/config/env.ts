@@ -27,9 +27,16 @@ const schema = z.object({
   GOOGLE_REDIRECT_URI: z.string().optional(),
   WHATSAPP_GRAPH_VERSION: z.string().default('v20.0'),
   UPLOAD_DIR: z.string().default('uploads'),
+  // Public self-registration. Left unset it is OFF in production (an internal CRM
+  // should not let anonymous users create accounts) and ON elsewhere for convenience.
+  ALLOW_PUBLIC_SIGNUP: z.string().optional(),
 });
 
 export const env = schema.parse(process.env);
+
+export const ALLOW_PUBLIC_SIGNUP = env.ALLOW_PUBLIC_SIGNUP
+  ? env.ALLOW_PUBLIC_SIGNUP === 'true'
+  : env.NODE_ENV !== 'production';
 
 // Refuse to boot in production with the shipped default signing secrets — they
 // are public knowledge and would allow anyone to forge tokens.

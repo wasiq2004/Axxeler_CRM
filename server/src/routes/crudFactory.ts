@@ -14,8 +14,9 @@ type CrudConfig = {
   createSchema?: z.ZodTypeAny;
   updateSchema?: z.ZodTypeAny;
   // Optional authorization guards inserted after requireAuth. `read` gates the
-  // list/detail GETs; `write` gates create/update/delete.
-  guards?: { read?: RequestHandler[]; write?: RequestHandler[] };
+  // list/detail GETs; `write` gates create/update; `remove` gates delete
+  // (falls back to `write` when not set).
+  guards?: { read?: RequestHandler[]; write?: RequestHandler[]; remove?: RequestHandler[] };
 };
 
 const prismaAny = prisma as any;
@@ -35,15 +36,24 @@ export const createCrudRouter = (config: CrudConfig) => {
 
   const read = config.guards?.read ?? [];
   const write = config.guards?.write ?? [];
+  const remove = config.guards?.remove ?? write;
 
   router.get(
     '/',
     ...read,
     asyncHandler(async (req, res) => {
+      const where = buildWhere(req.query.search, config.searchFields);
+      // `all=true` returns the full set (the SPA loads whole lists into context
+      // and computes dashboards/reports client-side — pagination would silently
+      // drop records from those aggregates).
+      if (req.query.all === 'true') {
+        const items = await delegate.findMany({ where, include: config.include, orderBy: { createdAt: 'desc' } });
+        res.json({ success: true, data: items.map(mapRecordForUi), meta: { page: 1, limit: items.length, total: items.length } });
+        return;
+      }
       const page = Math.max(Number(req.query.page || 1), 1);
       const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 100);
       const skip = (page - 1) * limit;
-      const where = buildWhere(req.query.search, config.searchFields);
       const [items, total] = await Promise.all([
         delegate.findMany({ where, skip, take: limit, include: config.include, orderBy: { createdAt: 'desc' } }),
         delegate.count({ where }),
@@ -86,7 +96,7 @@ export const createCrudRouter = (config: CrudConfig) => {
 
   router.delete(
     '/:id',
-    ...write,
+    ...remove,
     asyncHandler(async (req, res) => {
       await delegate.delete({ where: { id: req.params.id as string } });
       res.status(204).send();

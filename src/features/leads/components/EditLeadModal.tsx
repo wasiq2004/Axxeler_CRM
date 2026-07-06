@@ -34,17 +34,22 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead }) => {
     }
   }, [lead]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName || !lastName || !email) {
       alert('Please fill in First Name, Last Name, and Email.');
       return;
     }
-    
+
     if (lead) {
-      editLead(lead.id, { firstName, lastName, company, email, phone, status, ownerId });
+      try {
+        await editLead(lead.id, { firstName, lastName, company, email, phone, status, ownerId });
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to update lead.');
+        return; // keep the modal open
+      }
     }
-    
+
     closeEditLeadModal();
   };
 

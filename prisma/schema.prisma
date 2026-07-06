@@ -97,6 +97,8 @@ model RefreshToken {
   revokedAt DateTime?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Lead {
@@ -119,6 +121,10 @@ model Lead {
   notes       LeadNote[]
   activities  LeadActivity[]
   attachments LeadAttachment[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([campaignId])
 }
 
 model LeadNote {
@@ -129,6 +135,9 @@ model LeadNote {
   createdAt DateTime @default(now())
   lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
   author    User?    @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([authorId])
 }
 
 model LeadActivity {
@@ -140,6 +149,8 @@ model LeadActivity {
   authorName String?
   createdAt  DateTime @default(now())
   lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
 }
 
 model LeadAttachment {
@@ -150,6 +161,8 @@ model LeadAttachment {
   size      Int
   createdAt DateTime @default(now())
   lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
 }
 
 model Contact {
@@ -211,6 +224,10 @@ model Deal {
   updatedAt   DateTime  @updatedAt
   account     Account?  @relation(fields: [accountId], references: [id])
   owner       User?     @relation("DealOwner", fields: [ownerId], references: [id])
+
+  @@index([accountId])
+  @@index([ownerId])
+  @@index([stage])
 }
 
 model Task {
@@ -225,6 +242,9 @@ model Task {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   assignee     User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
+
+  @@index([assignedToId])
+  @@index([status])
 }
 
 model Invoice {
@@ -245,15 +265,20 @@ model Invoice {
   updatedAt     DateTime      @updatedAt
   items         InvoiceItem[]
   payments      Payment[]
+  template      InvoiceTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([templateId])
 }
 
 model InvoiceTemplate {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   html      String
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isDefault Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  invoices  Invoice[]
 }
 
 model InvoiceItem {
@@ -263,6 +288,8 @@ model InvoiceItem {
   quantity    Int
   price       Decimal @db.Decimal(14, 2)
   invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
 }
 
 model Payment {
@@ -277,6 +304,8 @@ model Payment {
   rawPayload         Json     @default("{}")
   createdAt          DateTime @default(now())
   invoice            Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
 }
 
 model Notification {
@@ -374,6 +403,9 @@ model CampaignRecipient {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   campaign            Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([status])
 }
 
 model CampaignAuditLog {

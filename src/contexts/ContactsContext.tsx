@@ -23,7 +23,7 @@ export const ContactsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const fetchContacts = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await crmApi.getContacts();
+      const res = await crmApi.getContacts({ all: true });
       setContacts(res.data || []);
     } catch {
       setContacts([]);

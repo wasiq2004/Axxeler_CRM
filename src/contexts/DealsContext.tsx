@@ -24,7 +24,7 @@ export const DealsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const fetchDeals = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await crmApi.getDeals();
+      const res = await crmApi.getDeals({ all: true });
       setDeals(res.data || []);
     } catch {
       setDeals([]);

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
 import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.js';
@@ -14,9 +15,26 @@ import {
 } from '../services/tokenService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../utils/httpError.js';
-import { env } from '../config/env.js';
+import { env, ALLOW_PUBLIC_SIGNUP } from '../config/env.js';
 
 const router = Router();
+
+// Throttle credential endpoints to blunt brute-force / enumeration. Tighter than
+// the global limiter. Keyed per IP.
+const loginLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many attempts, please try again in a minute.' },
+});
+const resetLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests, please try again later.' },
+});
 
 const publicUser = (user: { id: string; name: string; email: string; role: string; avatar?: string | null; permissions?: unknown }) => ({
   id: user.id,
@@ -44,6 +62,9 @@ const issueTokens = async (user: { id: string; email: string; role: string }) =>
 router.post(
   '/signup',
   asyncHandler(async (req, res) => {
+    if (!ALLOW_PUBLIC_SIGNUP) {
+      throw new HttpError(403, 'Public sign-up is disabled. Ask an administrator to create your account.');
+    }
     const body = z.object({ email: z.string().email(), password: z.string().min(6), name: z.string().min(1) }).parse(req.body);
     const exists = await prisma.user.findUnique({ where: { email: body.email } });
     if (exists) throw new HttpError(409, 'Email is already registered');
@@ -63,6 +84,7 @@ router.post(
 
 router.post(
   '/login',
+  loginLimiter,
   asyncHandler(async (req, res) => {
     const body = z.object({ email: z.string().email(), password: z.string().min(1) }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { email: body.email } });
@@ -106,6 +128,7 @@ router.post(
 
 router.post(
   '/forgot-password',
+  resetLimiter,
   asyncHandler(async (req, res) => {
     const body = z.object({ email: z.string().email() }).parse(req.body);
     const user = await prisma.user.findUnique({ where: { email: body.email } });
@@ -128,6 +151,7 @@ router.post(
 
 router.post(
   '/reset-password',
+  resetLimiter,
   asyncHandler(async (req, res) => {
     const body = z.object({ token: z.string().min(1), newPassword: z.string().min(6, 'Password must be at least 6 characters') }).parse(req.body);
     let userId: string;

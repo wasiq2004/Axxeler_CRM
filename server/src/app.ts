@@ -45,7 +45,15 @@ app.get('/api/health', (_req, res) => {
 
 // Serve uploaded files (avatars, logos) publicly. Reachable in production via the
 // nginx /api/ proxy, so no extra nginx/volume config is required.
-app.use('/api/uploads', express.static(env.UPLOAD_DIR));
+app.use(
+  '/api/uploads',
+  express.static(env.UPLOAD_DIR, {
+    setHeaders: (res) => {
+      // Never let a browser sniff an uploaded file into an executable type.
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    },
+  }),
+);
 app.use('/api/uploads', uploadsRoutes);
 
 app.use('/api/auth', authRoutes);

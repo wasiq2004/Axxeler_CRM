@@ -1,11 +1,15 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, allowRoles } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 const router = Router();
 router.use(requireAuth);
+// Notifications are not per-user scoped in the schema, so restrict the whole
+// surface to admins/managers (matches the client nav) rather than exposing
+// everyone's notifications to every authenticated user.
+router.use(allowRoles('admin', 'manager'));
 
 router.get(
   '/',

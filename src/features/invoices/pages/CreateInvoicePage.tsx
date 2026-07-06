@@ -27,7 +27,8 @@ const CreateInvoicePage: React.FC = () => {
     items: [
       { id: crypto.randomUUID(), description: '', quantity: 1, price: 0 }
     ] as InvoiceItem[],
-    taxRate: 8
+    taxRate: 8,
+    templateId: undefined as string | undefined,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -90,6 +91,7 @@ const CreateInvoicePage: React.FC = () => {
       status: 'Draft',
       items: formData.items,
       taxRate: formData.taxRate,
+      templateId: formData.templateId,
     });
     navigate('/invoices');
   };
@@ -146,6 +148,7 @@ const CreateInvoicePage: React.FC = () => {
         {currentStep === 3 && (
           <ReviewInvoiceStep
             formData={formData}
+            updateFormData={updateFormData}
           />
         )}
 

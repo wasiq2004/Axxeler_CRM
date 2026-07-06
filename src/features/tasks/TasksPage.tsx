@@ -180,7 +180,7 @@ const TasksPage: React.FC = () => {
                       <td className="px-8 py-5 whitespace-nowrap">
                         <div className="flex items-center gap-2 text-gray-600">
                           <Calendar size={14} className="text-gray-300" />
-                          <span className="text-xs font-bold tracking-tight">{task.dueDate}</span>
+                          <span className="text-xs font-bold tracking-tight">{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : ''}</span>
                         </div>
                       </td>
                       <td className="px-8 py-5 whitespace-nowrap">

@@ -13,14 +13,15 @@ const router = Router();
 // Ensure the upload directory exists (UPLOAD_DIR is a Docker volume in production)
 fs.mkdirSync(env.UPLOAD_DIR, { recursive: true });
 
-const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/svg+xml']);
+// NB: image/svg+xml is intentionally NOT allowed — SVGs can carry <script> and
+// are served same-origin, which would be a stored-XSS/token-theft vector.
+const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
 const EXT_BY_MIME: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
   'image/jpg': '.jpg',
   'image/webp': '.webp',
   'image/gif': '.gif',
-  'image/svg+xml': '.svg',
 };
 
 const storage = multer.diskStorage({
@@ -36,7 +37,7 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_MIME.has(file.mimetype)) {
-      cb(new HttpError(400, 'Only image files (png, jpg, webp, gif, svg) are allowed'));
+      cb(new HttpError(400, 'Only image files (png, jpg, webp, gif) are allowed'));
       return;
     }
     cb(null, true);

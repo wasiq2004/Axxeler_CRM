@@ -190,6 +190,18 @@ const ContactsPage: React.FC = () => {
         return sortableItems;
     }, [filteredContacts, sortConfig]);
 
+    // Pagination
+    const [pageSize, setPageSize] = useState(25);
+    const [page, setPage] = useState(1);
+    const totalPages = Math.max(1, Math.ceil(sortedContacts.length / pageSize));
+    const currentPage = Math.min(page, totalPages);
+    const pagedContacts = useMemo(
+        () => sortedContacts.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+        [sortedContacts, currentPage, pageSize],
+    );
+    // Reset to first page whenever the filtered set or page size changes.
+    React.useEffect(() => { setPage(1); }, [searchQuery, pageSize]);
+
     const requestSort = (key: keyof Contact) => {
         let direction: 'ascending' | 'descending' = 'ascending';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') direction = 'descending';
@@ -316,7 +328,7 @@ const ContactsPage: React.FC = () => {
             <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100/80 transition-all duration-300 hover:shadow-md overflow-hidden">
                 <div className="transition-all duration-500 ease-in-out">
                     <ContactsTable
-                        contacts={sortedContacts}
+                        contacts={pagedContacts}
                         requestSort={requestSort}
                         sortConfig={sortConfig}
                         onSelectContact={handleSelectContact}
@@ -331,18 +343,31 @@ const ContactsPage: React.FC = () => {
 
                 <div className="p-6 bg-gray-50/30 border-t border-gray-50 flex items-center justify-end text-[10px] font-black uppercase tracking-widest text-gray-400 space-x-4">
                     <span>{sortedContacts.length} total records</span>
+                    <span>Page {currentPage} / {totalPages}</span>
                     <div className="flex items-center space-x-1">
-                        <select className="bg-white border-gray-200 rounded-lg shadow-sm text-[10px] font-black p-1.5 focus:border-primary focus:ring-primary transition-all duration-200">
-                            <option>25 per page</option>
-                            <option>50 per page</option>
-                            <option>100 per page</option>
+                        <select
+                            value={pageSize}
+                            onChange={(e) => setPageSize(Number(e.target.value))}
+                            className="bg-white border-gray-200 rounded-lg shadow-sm text-[10px] font-black p-1.5 focus:border-primary focus:ring-primary transition-all duration-200"
+                        >
+                            <option value={25}>25 per page</option>
+                            <option value={50}>50 per page</option>
+                            <option value={100}>100 per page</option>
                         </select>
                     </div>
                     <div className="flex items-center gap-1">
-                        <button className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-300 hover:text-gray-900 disabled:opacity-30" disabled>
+                        <button
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            disabled={currentPage <= 1}
+                            className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
                             <ChevronLeft size={14} />
                         </button>
-                        <button className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-300 hover:text-gray-900 disabled:opacity-30" disabled>
+                        <button
+                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={currentPage >= totalPages}
+                            className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
                             <ChevronRight size={14} />
                         </button>
                     </div>

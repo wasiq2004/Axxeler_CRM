@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db/prisma.js';
-import { requireAuth, requirePermission, type AuthenticatedRequest } from '../middleware/auth.js';
+import { requireAuth, requirePermission, allowRoles, type AuthenticatedRequest } from '../middleware/auth.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { normalizeEnum, mapRecordForUi } from '../utils/enums.js';
 import { createCrudRouter } from './crudFactory.js';
@@ -14,6 +14,8 @@ router.use(
   createCrudRouter({
     model: 'contact',
     searchFields: ['name', 'phone', 'normalizedPhone', 'source', 'groupName'],
+    // Deleting shared contacts is restricted to admin/manager.
+    guards: { remove: [allowRoles('admin', 'manager')] },
     createSchema: z.object({
       name: z.string().optional(),
       phone: z.string(),
@@ -43,6 +45,7 @@ router.use(
   createCrudRouter({
     model: 'account',
     searchFields: ['name', 'industry', 'phone', 'website'],
+    guards: { remove: [allowRoles('admin', 'manager')] },
     createSchema: z.object({ name: z.string(), industry: z.string().optional(), phone: z.string().optional(), website: z.string().optional(), ownerId: z.string().optional() }),
     updateSchema: z.object({ name: z.string().optional(), industry: z.string().optional(), phone: z.string().optional(), website: z.string().optional(), ownerId: z.string().optional() }),
   }),
@@ -100,6 +103,7 @@ router.post(
 router.post(
   '/contacts/bulk-delete',
   requireAuth,
+  allowRoles('admin', 'manager'),
   asyncHandler(async (req, res) => {
     const body = z.object({ ids: z.array(z.string()).min(1) }).parse(req.body);
     await prisma.contact.deleteMany({ where: { id: { in: body.ids } } });
@@ -124,6 +128,7 @@ router.use(
     model: 'task',
     enumFields: ['status', 'priority'],
     searchFields: ['title', 'description'],
+    guards: { remove: [allowRoles('admin', 'manager')] },
     createSchema: z.object({
       title: z.string(),
       description: z.string().optional(),

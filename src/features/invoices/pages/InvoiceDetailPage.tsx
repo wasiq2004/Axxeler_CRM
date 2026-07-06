@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Download, Edit, FileText, Loader2, FileCode } from 'lucide-react';
 import InvoiceDesignerModal from '@/features/invoices/components/InvoiceDesignerModal';
+import { buildInvoiceContext, renderInvoiceTemplate } from '@/features/invoices/utils/invoiceTemplate';
+import { generateInvoicePdf } from '@/features/invoices/utils/htmlToPdf';
 import type { Invoice, InvoiceStatus } from '@/types';
 import { useInvoices } from '@/contexts/InvoicesContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -46,7 +48,19 @@ const InvoiceDetailPage: React.FC = () => {
     if (!invoice) return;
     setIsDownloading(true);
     try {
-      await crmApi.downloadInvoicePdf(invoice.id);
+      // If the invoice has a saved custom design, render THAT (client-side);
+      // otherwise fall back to the server's standard PDFKit layout.
+      let html = invoice.customHtml || undefined;
+      if (!html && invoice.templateId) {
+        const res = await crmApi.getInvoiceTemplates();
+        html = (res.data || []).find((t: any) => t.id === invoice.templateId)?.html;
+      }
+      if (html) {
+        const ctx = buildInvoiceContext(invoice, companyInfo, currency.symbol);
+        await generateInvoicePdf(renderInvoiceTemplate(html, ctx), `Invoice_${invoice.invoiceNumber}.pdf`);
+      } else {
+        await crmApi.downloadInvoicePdf(invoice.id);
+      }
     } catch (err) {
       console.error('PDF download failed:', err);
     } finally {

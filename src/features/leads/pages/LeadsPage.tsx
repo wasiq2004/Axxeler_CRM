@@ -7,11 +7,14 @@ import EditLeadModal from '@/features/leads/components/EditLeadModal';
 import CreateLeadModal from '@/features/leads/components/CreateLeadModal';
 import { useLeads } from '@/contexts/LeadsContext';
 import { useUI } from '@/contexts/UIContext';
+import { useCan } from '@/hooks/useCan';
 import { Lead, LeadStatus } from '@/types';
 
 const LeadsPage: React.FC = () => {
   const { leads } = useLeads();
   const { isEditLeadModalOpen, isCreateLeadModalOpen, openCreateLeadModal } = useUI();
+  const can = useCan();
+  const canEdit = can('editLeads');
   const [view, setView] = useState<'pipeline' | 'table'>('pipeline');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: keyof Lead; direction: 'ascending' | 'descending' } | null>(null);
@@ -101,15 +104,17 @@ const LeadsPage: React.FC = () => {
             </button>
           </div>
 
-          <Button
-            variant="primary"
-            size="md"
-            icon={Plus}
-            onClick={openCreateLeadModal}
-            className="!bg-gray-900 hover:!bg-black !text-white !font-black text-xs uppercase tracking-widest !rounded-xl shadow-lg shadow-gray-200 transform active:scale-95 transition-all w-full sm:w-auto"
-          >
-            Add Lead
-          </Button>
+          {canEdit && (
+            <Button
+              variant="primary"
+              size="md"
+              icon={Plus}
+              onClick={openCreateLeadModal}
+              className="!bg-gray-900 hover:!bg-black !text-white !font-black text-xs uppercase tracking-widest !rounded-xl shadow-lg shadow-gray-200 transform active:scale-95 transition-all w-full sm:w-auto"
+            >
+              Add Lead
+            </Button>
+          )}
         </div>
       </div>
 
