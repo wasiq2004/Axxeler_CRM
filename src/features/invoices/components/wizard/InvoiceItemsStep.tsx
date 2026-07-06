@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus, Trash2, AlertCircle } from 'lucide-react';
-import type { InvoiceItem } from '@/types';
+import type { InvoiceItem, InvoiceType } from '@/types';
 import Button from '@/components/ui/Button';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
@@ -8,6 +8,7 @@ interface InvoiceItemsStepProps {
     formData: {
         items: InvoiceItem[];
         taxRate: number;
+        invoiceType?: InvoiceType;
     };
     updateFormData: (updates: Partial<{
         items: InvoiceItem[];
@@ -18,6 +19,7 @@ interface InvoiceItemsStepProps {
 
 const InvoiceItemsStep: React.FC<InvoiceItemsStepProps> = ({ formData, updateFormData, errors }) => {
     const { currency } = useCurrency();
+    const isTaxInvoice = (formData.invoiceType || 'Tax') === 'Tax';
 
     const handleItemChange = (id: string, field: keyof Omit<InvoiceItem, 'id'>, value: string | number) => {
         const newItems = formData.items.map(item =>
@@ -141,20 +143,29 @@ const InvoiceItemsStep: React.FC<InvoiceItemsStepProps> = ({ formData, updateFor
                         <span>Subtotal</span>
                         <span className="font-medium">{currency.symbol}{calculateSubtotal().toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between items-center text-gray-600 text-sm">
-                        <span>Tax Rate (%)</span>
-                        <input
-                            type="number"
-                            value={formData.taxRate === 0 ? '' : formData.taxRate}
-                            onFocus={e => e.target.select()}
-                            onChange={e => updateFormData({ taxRate: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
-                            className="w-20 border border-gray-300 rounded-md shadow-sm py-1 px-2 text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#0079C1] focus:border-transparent"
-                        />
-                    </div>
-                    <div className="flex justify-between text-gray-600 text-sm">
-                        <span>Tax Amount</span>
-                        <span className="font-medium">{currency.symbol}{(calculateSubtotal() * (formData.taxRate / 100)).toFixed(2)}</span>
-                    </div>
+                    {isTaxInvoice ? (
+                        <>
+                            <div className="flex justify-between items-center text-gray-600 text-sm">
+                                <span>Tax Rate (%)</span>
+                                <input
+                                    type="number"
+                                    value={formData.taxRate === 0 ? '' : formData.taxRate}
+                                    onFocus={e => e.target.select()}
+                                    onChange={e => updateFormData({ taxRate: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+                                    className="w-20 border border-gray-300 rounded-md shadow-sm py-1 px-2 text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#0079C1] focus:border-transparent"
+                                />
+                            </div>
+                            <div className="flex justify-between text-gray-600 text-sm">
+                                <span>Tax Amount</span>
+                                <span className="font-medium">{currency.symbol}{(calculateSubtotal() * (formData.taxRate / 100)).toFixed(2)}</span>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex justify-between text-gray-400 text-sm italic">
+                            <span>General invoice</span>
+                            <span>No tax</span>
+                        </div>
+                    )}
                     <div className="flex justify-between text-gray-900 font-bold text-lg pt-3 border-t border-gray-200">
                         <span>Total Due</span>
                         <span className="text-[#0079C1]">{currency.symbol}{calculateTotal().toFixed(2)}</span>

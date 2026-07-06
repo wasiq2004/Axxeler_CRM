@@ -13,6 +13,8 @@ interface ReviewFormData {
     dueDate: string;
     items: InvoiceItem[];
     taxRate: number;
+    invoiceType?: 'General' | 'Tax';
+    paymentTerms?: string;
     templateId?: string;
 }
 
@@ -61,7 +63,9 @@ const ReviewInvoiceStep: React.FC<ReviewInvoiceStepProps> = ({ formData, updateF
             issueDate: new Date().toISOString().slice(0, 10),
             dueDate: formData.dueDate,
             status: 'Draft',
-            taxRate: formData.taxRate,
+            invoiceType: formData.invoiceType || 'Tax',
+            taxRate: (formData.invoiceType || 'Tax') === 'General' ? 0 : formData.taxRate,
+            paymentTerms: formData.paymentTerms,
             items: formData.items,
         };
         const ctx = buildInvoiceContext(previewInvoice, companyInfo, currency.symbol);

@@ -171,6 +171,9 @@ const InvoiceDetailPage: React.FC = () => {
             <p className="text-gray-500">Website: {companyInfo.website}</p>
           </div>
           <div className="sm:text-right">
+            <p className="text-2xl font-extrabold tracking-tight text-gray-900 mb-2">
+              {invoice.invoiceType === 'Tax' ? 'TAX INVOICE' : 'INVOICE'}
+            </p>
             <div className={`inline-block px-4 py-2 rounded-lg border-2 ${statusMeta.badge.bg} ${statusMeta.badge.border}`}>
               <span className={`text-lg font-bold uppercase ${statusMeta.badge.text}`}>{statusMeta.label}</span>
             </div>
@@ -222,10 +225,29 @@ const InvoiceDetailPage: React.FC = () => {
         <div className="flex justify-end mt-6">
             <div className="w-full max-w-xs space-y-2">
                 <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{currency.symbol}{subtotal.toLocaleString()}</span></div>
-                <div className="flex justify-between text-gray-600"><span>Tax ({invoice.taxRate}%)</span><span>{currency.symbol}{taxAmount.toLocaleString()}</span></div>
+                {invoice.taxRate > 0 && (
+                  <div className="flex justify-between text-gray-600"><span>Tax ({invoice.taxRate}%)</span><span>{currency.symbol}{taxAmount.toLocaleString()}</span></div>
+                )}
                 <div className="flex justify-between text-gray-800 font-bold text-lg border-t pt-2 mt-2"><span>Total</span><span>{currency.symbol}{total.toLocaleString()}</span></div>
             </div>
         </div>
+
+        {(invoice.paymentTerms || companyInfo.bankDetails) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-8 pt-6 border-t border-gray-100">
+            {invoice.paymentTerms && (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Ref / Terms</h4>
+                <p className="text-sm text-gray-700 whitespace-pre-line">{invoice.paymentTerms}</p>
+              </div>
+            )}
+            {companyInfo.bankDetails && (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Bank Account Details</h4>
+                <p className="text-sm text-gray-700 whitespace-pre-line">{companyInfo.bankDetails}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {showDesigner && <InvoiceDesignerModal invoice={invoice} onClose={() => setShowDesigner(false)} />}

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, AlertCircle, User, FileText, CheckCircle } from 'lucide-react';
-import type { InvoiceItem } from '@/types';
+import type { InvoiceItem, InvoiceType } from '@/types';
 import { useInvoices } from '@/contexts/InvoicesContext';
 import Button from '@/components/ui/Button';
 
@@ -28,6 +28,8 @@ const CreateInvoicePage: React.FC = () => {
       { id: crypto.randomUUID(), description: '', quantity: 1, price: 0 }
     ] as InvoiceItem[],
     taxRate: 8,
+    invoiceType: 'Tax' as InvoiceType,
+    paymentTerms: '',
     templateId: undefined as string | undefined,
   });
 
@@ -90,7 +92,9 @@ const CreateInvoicePage: React.FC = () => {
       dueDate: formData.dueDate,
       status: 'Draft',
       items: formData.items,
-      taxRate: formData.taxRate,
+      invoiceType: formData.invoiceType,
+      taxRate: formData.invoiceType === 'General' ? 0 : formData.taxRate,
+      paymentTerms: formData.paymentTerms || undefined,
       templateId: formData.templateId,
     });
     navigate('/invoices');

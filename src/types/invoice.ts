@@ -1,4 +1,5 @@
 export type InvoiceStatus = 'Paid' | 'Due' | 'Overdue' | 'Draft';
+export type InvoiceType = 'General' | 'Tax';
 
 export interface InvoiceItem {
   id: string;
@@ -16,8 +17,10 @@ export interface Invoice {
   issueDate: string;
   dueDate: string;
   status: InvoiceStatus;
+  invoiceType?: InvoiceType;
   items: InvoiceItem[];
   taxRate: number; // as a percentage, e.g., 8 for 8%
+  paymentTerms?: string | null;
   templateId?: string | null;
   customHtml?: string | null;
 }

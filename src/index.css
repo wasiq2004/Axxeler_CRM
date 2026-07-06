@@ -192,6 +192,26 @@ button:focus-visible {
 .delay-800 { animation-delay: 800ms; }
 .delay-1000 { animation-delay: 1000ms; }
 
+/* Staggered reveal: direct children fade/slide in one after another.
+   More specific than the per-child .animate-fadeIn/.delay-* utilities, so this
+   cleanly takes over when a parent is marked .stagger-container. */
+.stagger-container > * {
+  opacity: 0;
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.stagger-container > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-container > *:nth-child(2) { animation-delay: 0.13s; }
+.stagger-container > *:nth-child(3) { animation-delay: 0.21s; }
+.stagger-container > *:nth-child(4) { animation-delay: 0.29s; }
+.stagger-container > *:nth-child(5) { animation-delay: 0.37s; }
+.stagger-container > *:nth-child(6) { animation-delay: 0.45s; }
+.stagger-container > *:nth-child(7) { animation-delay: 0.53s; }
+.stagger-container > *:nth-child(8) { animation-delay: 0.61s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger-container > * { opacity: 1; animation: none; }
+}
+
 .animate-slideIn {
   animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }

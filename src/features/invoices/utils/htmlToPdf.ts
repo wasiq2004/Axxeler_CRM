@@ -1,11 +1,16 @@
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import { sanitizeInvoiceHtml } from './invoiceTemplate';
 
 // Render already-populated invoice HTML into an A4 PDF, entirely in the browser.
 // The HTML is rendered off-screen, captured to a canvas, then sliced across as
 // many A4 pages as needed. No server round-trip and no external services.
 export const generateInvoicePdf = async (html: string, filename: string): Promise<void> => {
+  // Lazy-load the heavy PDF libraries only when a PDF is actually generated —
+  // keeps them out of the main bundle (smaller build, lower build memory).
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ]);
+
   const host = document.createElement('div');
   // Off-screen but still laid out (display:none would give zero dimensions).
   host.style.position = 'fixed';

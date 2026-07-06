@@ -30,6 +30,7 @@ const getCompanyBranding = async () => {
     name: company?.name?.trim() || 'Your Company',
     currencyCode,
     currencySymbol: CURRENCY_SYMBOLS[currencyCode] || `${currencyCode} `,
+    bankDetails: company?.bankDetails || '',
   };
 };
 
@@ -42,13 +43,20 @@ const invoiceSchema = z.object({
   issueDate: z.coerce.date(),
   dueDate: z.coerce.date(),
   status: z.string().default('Draft'),
+  // General invoices carry no tax; Tax invoices apply taxRate.
+  invoiceType: z.enum(['General', 'Tax']).default('Tax'),
   taxRate: z.coerce.number().default(0),
+  paymentTerms: z.string().nullable().optional(),
   // Preserve explicit null so the user can clear a template back to "Standard";
   // `undefined` (field omitted) means "leave unchanged" on update.
   templateId: z.string().nullable().optional(),
   customHtml: z.string().nullable().optional(),
   items: z.array(z.object({ id: z.string().optional(), description: z.string(), quantity: z.coerce.number().int(), price: z.coerce.number() })).default([]),
 });
+
+// Enforce server-side: a General invoice is always tax-free, whatever the client sent.
+const enforceTaxRule = <T extends { invoiceType?: string; taxRate?: number }>(body: T): T =>
+  body.invoiceType === 'General' ? { ...body, taxRate: 0 } : body;
 
 const presentInvoice = (invoice: any) => ({
   ...invoice,
@@ -84,7 +92,7 @@ router.get(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const body = invoiceSchema.parse(req.body);
+    const body = enforceTaxRule(invoiceSchema.parse(req.body));
     // Assign a unique, sequential invoice number server-side. Retry on the rare
     // race where two invoices grab the same number concurrently.
     let invoice: Awaited<ReturnType<typeof prisma.invoice.create>> | undefined;
@@ -134,7 +142,7 @@ router.get(
 router.put(
   '/:id',
   asyncHandler(async (req, res) => {
-    const body = invoiceSchema.partial().parse(req.body);
+    const body = enforceTaxRule(invoiceSchema.partial().parse(req.body));
     const invoice = await prisma.$transaction(async (tx) => {
       if (body.items) {
         await tx.invoiceItem.deleteMany({ where: { invoiceId: req.params.id as string } });
@@ -149,7 +157,9 @@ router.put(
           issueDate: body.issueDate,
           dueDate: body.dueDate,
           status: body.status ? (normalizeEnum(body.status) as any) : undefined,
+          invoiceType: body.invoiceType,
           taxRate: body.taxRate,
+          paymentTerms: body.paymentTerms,
           templateId: body.templateId,
           customHtml: body.customHtml,
           items: body.items ? { create: body.items.map(({ id: _id, ...item }) => item) } : undefined,
@@ -212,7 +222,8 @@ router.get(
 
     // Header band
     doc.rect(0, 0, doc.page.width, 90).fill(PRIMARY);
-    doc.fillColor('#ffffff').fontSize(26).font('Helvetica-Bold').text('INVOICE', 56, 30);
+    const invoiceTitle = (invoice as any).invoiceType === 'Tax' ? 'TAX INVOICE' : 'INVOICE';
+    doc.fillColor('#ffffff').fontSize(26).font('Helvetica-Bold').text(invoiceTitle, 56, 30);
     doc.fontSize(11).font('Helvetica').text(`#${invoice.invoiceNumber}`, 56, 62);
 
     // Issuing company name (top right) + status badge
@@ -280,6 +291,21 @@ router.get(
     doc.fillColor('#1e293b').fontSize(13).font('Helvetica-Bold');
     doc.text('TOTAL', totalsX, y, { width: 80 });
     doc.text(`${sym}${fmt(total)}`, totalsX + 80, y, { width: 76, align: 'right' });
+
+    // Payment terms + bank details (left column, below the items)
+    let infoY = y + 40;
+    const paymentTerms = (invoice as any).paymentTerms as string | null;
+    if (paymentTerms && paymentTerms.trim()) {
+      doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold').text('PAYMENT REF / TERMS', 56, infoY, { characterSpacing: 1 });
+      infoY += 14;
+      doc.fillColor(GRAY).fontSize(10).font('Helvetica').text(paymentTerms.trim(), 56, infoY, { width: 300 });
+      infoY += doc.heightOfString(paymentTerms.trim(), { width: 300 }) + 16;
+    }
+    if (branding.bankDetails && branding.bankDetails.trim()) {
+      doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold').text('BANK ACCOUNT DETAILS', 56, infoY, { characterSpacing: 1 });
+      infoY += 14;
+      doc.fillColor(GRAY).fontSize(10).font('Helvetica').text(branding.bankDetails.trim(), 56, infoY, { width: 300 });
+    }
 
     // Footer
     const footerY = doc.page.height - 70;

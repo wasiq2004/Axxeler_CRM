@@ -13,7 +13,7 @@ const SettingsPage: React.FC = () => {
     const { updateUser } = useUsers();
     const { companyInfo, updateCompanyInfo } = useCompany();
     const { currency, setCurrencyByCode, availableCurrencies } = useCurrency();
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const { crmApi } = useApi();
 
     const [activeTab, setActiveTab] = useState('Profile');
@@ -32,13 +32,29 @@ const SettingsPage: React.FC = () => {
         phone: companyInfo.phone,
         email: companyInfo.email,
         website: companyInfo.website,
-        logo: companyInfo.logo
+        logo: companyInfo.logo,
+        bankDetails: companyInfo.bankDetails || ''
     });
+
+    // Keep the company form in sync once settings finish loading.
+    useEffect(() => {
+        setCompanyData({
+            name: companyInfo.name,
+            address: companyInfo.address,
+            phone: companyInfo.phone,
+            email: companyInfo.email,
+            website: companyInfo.website,
+            logo: companyInfo.logo,
+            bankDetails: companyInfo.bankDetails || '',
+        });
+    }, [companyInfo]);
 
     const handleSaveProfile = async () => {
         try {
             const res = await crmApi.updateProfile({ name: userData.name, avatar: userData.avatar, phone: userData.phone });
             if (user?.id) updateUser(user.id, res.data);
+            // Refresh AuthContext so the Header/Sidebar avatar updates immediately.
+            await refreshUser();
             alert('Profile updated successfully!');
         } catch {
             alert('Failed to save profile. Please try again.');
@@ -482,6 +498,20 @@ const CompanyTab: React.FC<{
                             rows={3}
                             className="w-full bg-gray-50/50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-semibold focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
                         />
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1 flex items-center gap-2">
+                            <Building className="w-3 h-3" /> Bank Account Details
+                        </label>
+                        <textarea
+                            name="bankDetails"
+                            value={companyData.bankDetails}
+                            onChange={handleChange}
+                            rows={4}
+                            placeholder={"Bank Name\nAccount Name\nAccount No: 000000000000\nIFSC / SWIFT: XXXX0000000"}
+                            className="w-full bg-gray-50/50 border border-gray-100 rounded-xl px-4 py-3 text-sm font-semibold focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+                        />
+                        <p className="text-[10px] text-gray-400 px-1">Shown on invoices and available as the {'{{bankDetails}}'} field in invoice templates.</p>
                     </div>
                 </div>
             </div>

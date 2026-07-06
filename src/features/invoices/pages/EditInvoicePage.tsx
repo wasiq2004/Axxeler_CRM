@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Trash2, Save, AlertCircle } from 'lucide-react';
-import type { Invoice, InvoiceItem } from '@/types';
+import type { Invoice, InvoiceItem, InvoiceType } from '@/types';
 import { useInvoices } from '@/contexts/InvoicesContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import Button from '@/components/ui/Button';
@@ -22,6 +22,8 @@ const EditInvoicePage: React.FC = () => {
     { id: crypto.randomUUID(), description: '', quantity: 1, price: 0 }
   ]);
   const [taxRate, setTaxRate] = useState(invoice?.taxRate || 8);
+  const [invoiceType, setInvoiceType] = useState<InvoiceType>(invoice?.invoiceType || 'Tax');
+  const [paymentTerms, setPaymentTerms] = useState(invoice?.paymentTerms || '');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleItemChange = (itemId: string, field: keyof Omit<InvoiceItem, 'id'>, value: string | number) => {
@@ -38,12 +40,14 @@ const EditInvoicePage: React.FC = () => {
     }
   };
 
+  const isTaxInvoice = invoiceType === 'Tax';
   const { subtotal, taxAmount, total } = useMemo(() => {
     const subtotal = items.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
-    const taxAmount = subtotal * (taxRate / 100);
+    const effectiveTax = invoiceType === 'General' ? 0 : taxRate;
+    const taxAmount = subtotal * (effectiveTax / 100);
     const total = subtotal + taxAmount;
     return { subtotal, taxAmount, total };
-  }, [items, taxRate]);
+  }, [items, taxRate, invoiceType]);
   
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -87,7 +91,9 @@ const EditInvoicePage: React.FC = () => {
       clientEmail,
       dueDate,
       items,
-      taxRate,
+      invoiceType,
+      taxRate: invoiceType === 'General' ? 0 : taxRate,
+      paymentTerms: paymentTerms || null,
     });
 
     navigate('/invoices');
@@ -124,6 +130,24 @@ const EditInvoicePage: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow-sm p-6 sm:p-8">
+        <div className="mb-8">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Invoice Type</label>
+          <div className="inline-flex rounded-xl border border-gray-200 p-1 bg-gray-50">
+            {(['Tax', 'General'] as InvoiceType[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setInvoiceType(t)}
+                className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${
+                  invoiceType === t ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {t === 'Tax' ? 'Tax Invoice' : 'General Invoice'}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-gray-400">{isTaxInvoice ? 'Tax will be applied to this invoice.' : 'No tax will be applied (general invoice).'}</p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Client Name <span className="text-red-500">*</span></label>
@@ -268,25 +292,44 @@ const EditInvoicePage: React.FC = () => {
           </div>
         </div>
 
+        <div className="mt-8">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Payment Ref / Terms</label>
+          <textarea
+            value={paymentTerms}
+            onChange={e => setPaymentTerms(e.target.value)}
+            rows={2}
+            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            placeholder="e.g. Payment due within 15 days. Ref: PO-1234"
+          />
+        </div>
+
         <div className="flex justify-end mt-6">
           <div className="w-full max-w-xs space-y-2">
             <div className="flex justify-between text-gray-600">
               <span>Subtotal</span>
               <span>{currency.symbol}{subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between items-center text-gray-600">
-              <span>Tax (%)</span>
-              <input 
-                type="number" 
-                value={taxRate} 
-                onChange={e => setTaxRate(parseFloat(e.target.value) || 0)} 
-                className="w-16 border-gray-300 rounded-md shadow-sm text-sm text-right" 
-              />
-            </div>
-            <div className="flex justify-between text-gray-600">
-              <span>Tax Amount</span>
-              <span>{currency.symbol}{taxAmount.toFixed(2)}</span>
-            </div>
+            {isTaxInvoice ? (
+              <>
+                <div className="flex justify-between items-center text-gray-600">
+                  <span>Tax (%)</span>
+                  <input
+                    type="number"
+                    value={taxRate}
+                    onChange={e => setTaxRate(parseFloat(e.target.value) || 0)}
+                    className="w-16 border-gray-300 rounded-md shadow-sm text-sm text-right"
+                  />
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Tax Amount</span>
+                  <span>{currency.symbol}{taxAmount.toFixed(2)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between text-gray-400 italic text-sm">
+                <span>General invoice</span><span>No tax</span>
+              </div>
+            )}
             <div className="flex justify-between text-gray-800 font-bold text-lg border-t pt-2 mt-2">
               <span>Total</span>
               <span>{currency.symbol}{total.toFixed(2)}</span>

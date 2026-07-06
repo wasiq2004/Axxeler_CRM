@@ -19,6 +19,7 @@ const schema = z.object({
   website: z.string(),
   logo: z.string(),
   currency: z.string().default('USD'),
+  bankDetails: z.string().default(''),
 });
 
 router.get(
@@ -66,6 +67,7 @@ router.put(
         website: body.website || '',
         logo: body.logo || '/axxeler-logo-white.png',
         currency: body.currency || 'USD',
+        bankDetails: body.bankDetails || '',
       },
     });
     res.json({ success: true, data: company });

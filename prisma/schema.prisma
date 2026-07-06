@@ -256,7 +256,10 @@ model Invoice {
   issueDate     DateTime
   dueDate       DateTime
   status        InvoiceStatus @default(Draft)
+  // "Tax" invoices apply taxRate; "General" invoices carry no tax.
+  invoiceType   String        @default("Tax")
   taxRate       Decimal       @db.Decimal(5, 2)
+  paymentTerms  String?
   // Optional custom HTML invoice design. `templateId` links a reusable template;
   // `customHtml` overrides it for this one invoice.
   templateId    String?
@@ -322,15 +325,17 @@ model Notification {
 }
 
 model CompanySetting {
-  id        String   @id @default("company")
-  name      String
-  address   String
-  phone     String
-  email     String
-  website   String
-  logo      String
-  currency  String   @default("USD")
-  updatedAt DateTime @updatedAt
+  id          String   @id @default("company")
+  name        String
+  address     String
+  phone       String
+  email       String
+  website     String
+  logo        String
+  currency    String   @default("USD")
+  // Bank account details shown on invoices (free-text, multi-line).
+  bankDetails String   @default("")
+  updatedAt   DateTime @updatedAt
 }
 
 model IntegrationConfig {

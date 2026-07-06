@@ -12,6 +12,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   signup: (email: string, password: string, name: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -102,6 +103,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Re-fetch the current user so app chrome (Header, etc.) reflects profile
+  // edits like a new avatar/name without a full page reload.
+  const refreshUser = async () => {
+    try {
+      const response = await crmApi.getProfile();
+      const profile = response.data || response;
+      setUser(profile);
+      if (profile?.role) localStorage.setItem('user_role', profile.role);
+      if (profile?.email) localStorage.setItem('user_email', profile.email);
+    } catch {
+      // ignore — keep current user state
+    }
+  };
+
   const logout = () => {
     // Revoke the server-side session (best effort — don't block local sign-out).
     crmApi.logout?.().catch(() => undefined);
@@ -125,7 +140,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, isLoading, loading: isLoading, error, login, logout, signup }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, isLoading, loading: isLoading, error, login, logout, signup, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

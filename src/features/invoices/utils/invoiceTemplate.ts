@@ -17,6 +17,8 @@ export const MERGE_FIELDS: { key: string; label: string }[] = [
   { key: 'companyWebsite', label: 'Your company website' },
   { key: 'companyLogo', label: 'Your company logo URL (use in <img src>)' },
   { key: 'invoiceNumber', label: 'Invoice number' },
+  { key: 'invoiceType', label: 'Invoice type (General / Tax)' },
+  { key: 'invoiceTypeLabel', label: 'Title — "TAX INVOICE" or "INVOICE"' },
   { key: 'status', label: 'Invoice status' },
   { key: 'issueDate', label: 'Issue date' },
   { key: 'dueDate', label: 'Due date' },
@@ -27,7 +29,12 @@ export const MERGE_FIELDS: { key: string; label: string }[] = [
   { key: 'subtotal', label: 'Subtotal (formatted)' },
   { key: 'taxRate', label: 'Tax rate %' },
   { key: 'taxAmount', label: 'Tax amount (formatted)' },
+  { key: 'taxRow', label: 'Tax <tr> row (empty for General invoices)' },
   { key: 'total', label: 'Grand total (formatted)' },
+  { key: 'paymentTerms', label: 'Payment ref / terms (raw text)' },
+  { key: 'paymentTermsBlock', label: 'Payment ref/terms block (empty if none)' },
+  { key: 'bankDetails', label: 'Bank account details (raw text)' },
+  { key: 'bankDetailsBlock', label: 'Bank account details block (empty if none)' },
   { key: 'itemRows', label: 'Line-item <tr> rows (put inside your own <table>)' },
   { key: 'itemsTable', label: 'A complete, ready-styled line-items table' },
 ];
@@ -39,6 +46,7 @@ export interface CompanyInfoLike {
   email?: string;
   website?: string;
   logo?: string;
+  bankDetails?: string;
 }
 
 const esc = (v: unknown) =>
@@ -58,8 +66,25 @@ export const buildInvoiceContext = (
 ): Record<string, string> => {
   const items = invoice.items || [];
   const subtotal = items.reduce((s, i) => s + Number(i.price) * Number(i.quantity), 0);
-  const taxAmount = subtotal * (Number(invoice.taxRate || 0) / 100);
+  const taxRate = Number(invoice.taxRate || 0);
+  const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;
+  const invoiceType = invoice.invoiceType === 'General' ? 'General' : 'Tax';
+  const paymentTerms = (invoice.paymentTerms || '').toString();
+  const bankDetails = (company.bankDetails || '').toString();
+
+  // Conditional, pre-styled blocks so templates stay simple and General invoices
+  // cleanly omit the tax row.
+  const taxRow =
+    taxRate > 0
+      ? `<tr><td style="padding:6px 0;">Tax (${esc(taxRate)}%)</td><td style="padding:6px 0;text-align:right;">${money(taxAmount, currencySymbol)}</td></tr>`
+      : '';
+  const paymentTermsBlock = paymentTerms.trim()
+    ? `<div style="margin-top:24px;"><p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;font-weight:700;">Payment Ref / Terms</p><p style="margin:0;white-space:pre-line;color:#475569;font-size:13px;">${esc(paymentTerms)}</p></div>`
+    : '';
+  const bankDetailsBlock = bankDetails.trim()
+    ? `<div style="margin-top:16px;"><p style="margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;font-weight:700;">Bank Account Details</p><p style="margin:0;white-space:pre-line;color:#475569;font-size:13px;">${esc(bankDetails)}</p></div>`
+    : '';
 
   const itemRows = items
     .map(
@@ -92,6 +117,8 @@ export const buildInvoiceContext = (
     companyWebsite: esc(company.website),
     companyLogo: esc(company.logo),
     invoiceNumber: esc(invoice.invoiceNumber),
+    invoiceType: esc(invoiceType),
+    invoiceTypeLabel: invoiceType === 'Tax' ? 'TAX INVOICE' : 'INVOICE',
     status: esc(invoice.status),
     issueDate: esc(invoice.issueDate),
     dueDate: esc(invoice.dueDate),
@@ -100,10 +127,15 @@ export const buildInvoiceContext = (
     clientEmail: esc(invoice.clientEmail),
     currencySymbol: currencySymbol,
     subtotal: money(subtotal, currencySymbol),
-    taxRate: esc(invoice.taxRate),
+    taxRate: esc(taxRate),
     taxAmount: money(taxAmount, currencySymbol),
     total: money(total, currencySymbol),
-    // itemRows / itemsTable are trusted HTML we build above — not escaped.
+    paymentTerms: esc(paymentTerms),
+    bankDetails: esc(bankDetails),
+    // Trusted HTML we build above — not escaped.
+    taxRow,
+    paymentTermsBlock,
+    bankDetailsBlock,
     itemRows,
     itemsTable,
   };
@@ -125,7 +157,7 @@ export const DEFAULT_INVOICE_TEMPLATE = `<div style="max-width:800px;margin:0 au
       <p style="margin:4px 0 0;color:#64748b;font-size:13px;">{{companyPhone}} · {{companyEmail}}</p>
     </div>
     <div style="text-align:right;">
-      <h2 style="margin:0;font-size:32px;font-weight:800;letter-spacing:2px;color:#0f172a;">INVOICE</h2>
+      <h2 style="margin:0;font-size:30px;font-weight:800;letter-spacing:2px;color:#0f172a;">{{invoiceTypeLabel}}</h2>
       <p style="margin:6px 0 0;color:#64748b;font-size:13px;">#{{invoiceNumber}}</p>
       <span style="display:inline-block;margin-top:8px;padding:4px 14px;border-radius:20px;background:#e0f2fe;color:#0369a1;font-size:12px;font-weight:700;text-transform:uppercase;">{{status}}</span>
     </div>
@@ -150,10 +182,13 @@ export const DEFAULT_INVOICE_TEMPLATE = `<div style="max-width:800px;margin:0 au
   <div style="display:flex;justify-content:flex-end;margin-top:24px;">
     <table style="width:280px;font-size:14px;color:#334155;">
       <tr><td style="padding:6px 0;">Subtotal</td><td style="padding:6px 0;text-align:right;">{{subtotal}}</td></tr>
-      <tr><td style="padding:6px 0;">Tax ({{taxRate}}%)</td><td style="padding:6px 0;text-align:right;">{{taxAmount}}</td></tr>
+      {{taxRow}}
       <tr style="border-top:2px solid #e2e8f0;"><td style="padding:10px 0;font-weight:800;font-size:16px;">Total Due</td><td style="padding:10px 0;text-align:right;font-weight:800;font-size:16px;color:#0079C1;">{{total}}</td></tr>
     </table>
   </div>
+
+  {{paymentTermsBlock}}
+  {{bankDetailsBlock}}
 
   <p style="margin-top:48px;padding-top:20px;border-top:1px solid #eef2f7;text-align:center;color:#94a3b8;font-size:12px;">
     Thank you for your business. · {{companyName}}

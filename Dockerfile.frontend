@@ -11,6 +11,9 @@ COPY . .
 ARG GEMINI_API_KEY=""
 ENV GEMINI_API_KEY=$GEMINI_API_KEY
 
+# Give Node enough heap for the Vite build on low-RAM hosts (needs host swap
+# if physical RAM is under ~2 GB).
+ENV NODE_OPTIONS=--max-old-space-size=2048
 RUN npm run build
 
 # Stage 2: Serve with Nginx

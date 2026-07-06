@@ -10,6 +10,7 @@ interface CompanyInfo {
   website: string;
   logo: string;
   currency?: string;
+  bankDetails?: string;
 }
 
 interface CompanyContextType {
