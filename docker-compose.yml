@@ -103,6 +103,7 @@ services:
     restart: unless-stopped
     networks:
       - internal          # to reach the backend container
+      - dokploy-network   # so Dokploy's Traefik can route the public domain here
     depends_on:
       - backend
 
@@ -114,3 +115,6 @@ volumes:
 networks:
   internal:
     driver: bridge
+  # Created and managed by Dokploy; Traefik uses it to reach service containers.
+  dokploy-network:
+    external: true
