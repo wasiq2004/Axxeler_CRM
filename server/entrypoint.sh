@@ -8,4 +8,4 @@ echo "[entrypoint] Seeding database (admin user + defaults)..."
 node_modules/.bin/tsx prisma/seed.ts
 
 echo "[entrypoint] Starting Axxeler CRM API..."
-exec node server/dist/index.js
+exec node_modules/.bin/tsx server/src/index.ts

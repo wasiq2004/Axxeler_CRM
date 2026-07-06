@@ -8,8 +8,10 @@ COPY server/ ./server/
 COPY prisma/ ./prisma/
 
 RUN node_modules/.bin/prisma generate
-# Fail the image build if the server has type errors (no more silent `|| true`).
-RUN node_modules/.bin/tsc -p server/tsconfig.json
+# NOTE: no `tsc` build step here — the server runs via `tsx` at runtime (see
+# entrypoint.sh). This keeps the backend image build lightweight so it doesn't
+# compete for RAM with the frontend Vite build on small hosts. Type-checking is
+# done separately (npm run build:server / tsc) during development/CI.
 
 COPY server/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
