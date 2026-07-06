@@ -1,8 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import PDFDocument from 'pdfkit';
+import axios from 'axios';
 import { Router } from 'express';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
+import { env } from '../config/env.js';
 import { requireAuth, allowRoles } from '../middleware/auth.js';
 import { emailService } from '../services/emailService.js';
 import { razorpayService } from '../services/razorpayService.js';
@@ -22,16 +26,46 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$', EUR: '€', GBP: '£', INR: '₹', AUD: 'A$', CAD: 'C$', JPY: '¥', AED: 'د.إ', SGD: 'S$',
 };
 
-// Load company branding (name + currency symbol) for documents/emails.
+// Load company branding (name, contact, logo, currency) for documents/emails.
 const getCompanyBranding = async () => {
   const company = await prisma.companySetting.findUnique({ where: { id: 'company' } });
   const currencyCode = company?.currency || 'USD';
   return {
     name: company?.name?.trim() || 'Your Company',
+    address: company?.address?.trim() || '',
+    phone: company?.phone?.trim() || '',
+    email: company?.email?.trim() || '',
+    website: company?.website?.trim() || '',
+    logo: company?.logo?.trim() || '',
     currencyCode,
     currencySymbol: CURRENCY_SYMBOLS[currencyCode] || `${currencyCode} `,
     bankDetails: company?.bankDetails || '',
   };
+};
+
+// PDFKit only embeds PNG/JPEG. Resolve the configured logo (an /api/uploads path
+// on disk, or an http(s) URL) to a usable image buffer; return null on anything
+// it can't safely embed (SVG, missing file, network error, frontend-only asset).
+const isPngOrJpeg = (buf: Buffer) =>
+  buf.length >= 3 &&
+  ((buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e) || // PNG
+    (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)); // JPEG
+
+const loadLogoBuffer = async (logo: string): Promise<Buffer | null> => {
+  try {
+    if (!logo) return null;
+    let buf: Buffer | null = null;
+    if (/^https?:\/\//i.test(logo)) {
+      const res = await axios.get<ArrayBuffer>(logo, { responseType: 'arraybuffer', timeout: 5000, maxContentLength: 5 * 1024 * 1024 });
+      buf = Buffer.from(res.data);
+    } else if (logo.startsWith('/api/uploads/')) {
+      const file = path.join(env.UPLOAD_DIR, path.basename(logo));
+      if (fs.existsSync(file)) buf = fs.readFileSync(file);
+    }
+    return buf && isPngOrJpeg(buf) ? buf : null;
+  } catch {
+    return null;
+  }
 };
 
 const invoiceSchema = z.object({
@@ -209,6 +243,7 @@ router.get(
     // render as garbage. Map those to ASCII-safe equivalents for the PDF only.
     const PDF_SAFE_SYMBOLS: Record<string, string> = { '₹': 'Rs. ', 'د.إ': 'AED ' };
     const sym = PDF_SAFE_SYMBOLS[branding.currencySymbol] || branding.currencySymbol;
+    const logoBuf = await loadLogoBuffer(branding.logo);
     const { subtotal, tax, total } = computeTotals(invoice);
     const fmt = (n: Prisma.Decimal | number) => new Prisma.Decimal(n).toFixed(2);
 
@@ -228,34 +263,55 @@ router.get(
     const invoiceTitle = (invoice as any).invoiceType === 'Tax' ? 'TAX INVOICE' : 'INVOICE';
     doc.fillColor('#ffffff').fontSize(26).font('Helvetica-Bold').text(invoiceTitle, 56, 30);
     doc.fontSize(11).font('Helvetica').text(`#${invoice.invoiceNumber}`, 56, 62);
+    doc.fontSize(13).font('Helvetica-Bold').text(branding.name, doc.page.width - 250, 34, { width: 194, align: 'right' });
+    doc.fontSize(10).font('Helvetica-Bold').text(presentEnum(invoice.status).toUpperCase(), doc.page.width - 250, 56, { width: 194, align: 'right' });
 
-    // Issuing company name (top right) + status badge
-    doc.fontSize(13).font('Helvetica-Bold')
-       .text(branding.name, doc.page.width - 250, 30, { width: 200, align: 'right' });
-    doc.fontSize(10).font('Helvetica-Bold')
-       .text(presentEnum(invoice.status).toUpperCase(), doc.page.width - 250, 52, { width: 200, align: 'right' });
+    // ── FROM (company branding, from Settings) — left column ──────────────
+    let leftY = 112;
+    if (logoBuf) {
+      try {
+        doc.image(logoBuf, 56, leftY, { fit: [150, 46] });
+        leftY += 54;
+      } catch {
+        /* ignore an unembeddable image */
+      }
+    }
+    doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('FROM', 56, leftY, { characterSpacing: 1.5 });
+    leftY += 13;
+    doc.fillColor('#1e293b').fontSize(12).font('Helvetica-Bold').text(branding.name, 56, leftY, { width: 250 });
+    leftY += 16;
+    doc.fillColor(GRAY).fontSize(9).font('Helvetica');
+    if (branding.address) {
+      doc.text(branding.address, 56, leftY, { width: 250 });
+      leftY += doc.heightOfString(branding.address, { width: 250 }) + 3;
+    }
+    const contactLine = [branding.phone, branding.email].filter(Boolean).join('   ·   ');
+    if (contactLine) { doc.text(contactLine, 56, leftY, { width: 250 }); leftY += 12; }
+    if (branding.website) { doc.text(branding.website, 56, leftY, { width: 250 }); leftY += 12; }
 
-    // Bill to section
-    doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold')
-       .text('BILL TO', 56, 110, { characterSpacing: 1.5 });
-    doc.fillColor('#1e293b').fontSize(13).font('Helvetica-Bold')
-       .text(invoice.clientName, 56, 125);
-    doc.fillColor(GRAY).fontSize(10).font('Helvetica')
-       .text(invoice.clientCompany || '', 56, 142)
-       .text(invoice.clientEmail, 56, 157);
+    // ── BILL TO + dates — right column ────────────────────────────────────
+    const rightX = 330;
+    let rightY = 112;
+    doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('BILL TO', rightX, rightY, { characterSpacing: 1.5 });
+    rightY += 13;
+    doc.fillColor('#1e293b').fontSize(12).font('Helvetica-Bold').text(invoice.clientName, rightX, rightY, { width: 209 });
+    rightY += 16;
+    doc.fillColor(GRAY).fontSize(9).font('Helvetica');
+    if (invoice.clientCompany) { doc.text(invoice.clientCompany, rightX, rightY, { width: 209 }); rightY += 12; }
+    doc.text(invoice.clientEmail, rightX, rightY, { width: 209 });
+    rightY += 20;
+    doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('INVOICE DATE', rightX, rightY, { characterSpacing: 1 });
+    doc.text('DUE DATE', rightX + 110, rightY, { characterSpacing: 1 });
+    rightY += 12;
+    doc.fillColor(GRAY).fontSize(10).font('Helvetica').text(invoice.issueDate.toISOString().slice(0, 10), rightX, rightY);
+    doc.fillColor('#dc2626').fontSize(10).font('Helvetica-Bold').text(invoice.dueDate.toISOString().slice(0, 10), rightX + 110, rightY);
+    rightY += 18;
 
-    // Dates section (right side)
-    const dateX = doc.page.width - 220;
-    doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold').text('INVOICE DATE', dateX, 110, { characterSpacing: 1 });
-    doc.fillColor(GRAY).fontSize(10).font('Helvetica').text(invoice.issueDate.toISOString().slice(0, 10), dateX, 125);
-    doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold').text('DUE DATE', dateX, 145, { characterSpacing: 1 });
-    doc.fillColor('#dc2626').fontSize(10).font('Helvetica-Bold').text(invoice.dueDate.toISOString().slice(0, 10), dateX, 160);
-
-    // Divider
-    doc.moveTo(56, 185).lineTo(56 + pageWidth, 185).strokeColor(LIGHT).lineWidth(1).stroke();
+    // Table starts below whichever column ran longer.
+    const tableTop = Math.max(leftY, rightY) + 18;
+    doc.moveTo(56, tableTop - 12).lineTo(56 + pageWidth, tableTop - 12).strokeColor(LIGHT).lineWidth(1).stroke();
 
     // Table header
-    const tableTop = 200;
     doc.rect(56, tableTop, pageWidth, 26).fill(LIGHT);
     doc.fillColor('#374151').fontSize(9).font('Helvetica-Bold');
     doc.text('DESCRIPTION', 66, tableTop + 9);

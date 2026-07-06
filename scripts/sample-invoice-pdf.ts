@@ -12,8 +12,16 @@ const PDF_SAFE_SYMBOLS: Record<string, string> = { '₹': 'Rs. ', 'د.إ': 'AED 
 const rawSymbol = CURRENCY_SYMBOLS['INR'];
 const pdfSymbol = PDF_SAFE_SYMBOLS[rawSymbol] || rawSymbol;
 
+// Use the real logo to verify image embedding (skip if not present).
+let logoBuf: Buffer | null = null;
+try { logoBuf = fs.readFileSync('public/black logo.png'); } catch { logoBuf = null; }
+
 const branding = {
   name: 'Axxeler CRM Inc.',
+  address: '123 Business Avenue, Suite 100\nMG Road, Bengaluru, KA 560001',
+  phone: '+91 98765 43210',
+  email: 'info@axxeler.in',
+  website: 'www.axxeler.in',
   currencyCode: 'INR',
   currencySymbol: pdfSymbol,
   bankDetails:
@@ -56,25 +64,46 @@ function renderInvoice(invoice: Invoice, outFile: string) {
   const invoiceTitle = invoice.invoiceType === 'Tax' ? 'TAX INVOICE' : 'INVOICE';
   doc.fillColor('#ffffff').fontSize(26).font('Helvetica-Bold').text(invoiceTitle, 56, 30);
   doc.fontSize(11).font('Helvetica').text(`#${invoice.invoiceNumber}`, 56, 62);
-  doc.fontSize(13).font('Helvetica-Bold').text(branding.name, doc.page.width - 250, 30, { width: 200, align: 'right' });
-  doc.fontSize(10).font('Helvetica-Bold').text(invoice.status.toUpperCase(), doc.page.width - 250, 52, { width: 200, align: 'right' });
+  doc.fontSize(13).font('Helvetica-Bold').text(branding.name, doc.page.width - 250, 34, { width: 194, align: 'right' });
+  doc.fontSize(10).font('Helvetica-Bold').text(invoice.status.toUpperCase(), doc.page.width - 250, 56, { width: 194, align: 'right' });
 
-  // Bill to
-  doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold').text('BILL TO', 56, 110, { characterSpacing: 1.5 });
-  doc.fillColor('#1e293b').fontSize(13).font('Helvetica-Bold').text(invoice.clientName, 56, 125);
-  doc.fillColor(GRAY).fontSize(10).font('Helvetica').text(invoice.clientCompany || '', 56, 142).text(invoice.clientEmail, 56, 157);
+  // FROM (company branding)
+  let leftY = 112;
+  if (logoBuf) {
+    try { doc.image(logoBuf, 56, leftY, { fit: [150, 46] }); leftY += 54; } catch { /* skip */ }
+  }
+  doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('FROM', 56, leftY, { characterSpacing: 1.5 });
+  leftY += 13;
+  doc.fillColor('#1e293b').fontSize(12).font('Helvetica-Bold').text(branding.name, 56, leftY, { width: 250 });
+  leftY += 16;
+  doc.fillColor(GRAY).fontSize(9).font('Helvetica');
+  if (branding.address) { doc.text(branding.address, 56, leftY, { width: 250 }); leftY += doc.heightOfString(branding.address, { width: 250 }) + 3; }
+  const contactLine = [branding.phone, branding.email].filter(Boolean).join('   ·   ');
+  if (contactLine) { doc.text(contactLine, 56, leftY, { width: 250 }); leftY += 12; }
+  if (branding.website) { doc.text(branding.website, 56, leftY, { width: 250 }); leftY += 12; }
 
-  // Dates
-  const dateX = doc.page.width - 220;
-  doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold').text('INVOICE DATE', dateX, 110, { characterSpacing: 1 });
-  doc.fillColor(GRAY).fontSize(10).font('Helvetica').text(invoice.issueDate, dateX, 125);
-  doc.fillColor('#1e293b').fontSize(9).font('Helvetica-Bold').text('DUE DATE', dateX, 145, { characterSpacing: 1 });
-  doc.fillColor('#dc2626').fontSize(10).font('Helvetica-Bold').text(invoice.dueDate, dateX, 160);
+  // BILL TO + dates
+  const rightX = 330;
+  let rightY = 112;
+  doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('BILL TO', rightX, rightY, { characterSpacing: 1.5 });
+  rightY += 13;
+  doc.fillColor('#1e293b').fontSize(12).font('Helvetica-Bold').text(invoice.clientName, rightX, rightY, { width: 209 });
+  rightY += 16;
+  doc.fillColor(GRAY).fontSize(9).font('Helvetica');
+  if (invoice.clientCompany) { doc.text(invoice.clientCompany, rightX, rightY, { width: 209 }); rightY += 12; }
+  doc.text(invoice.clientEmail, rightX, rightY, { width: 209 });
+  rightY += 20;
+  doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('INVOICE DATE', rightX, rightY, { characterSpacing: 1 });
+  doc.text('DUE DATE', rightX + 110, rightY, { characterSpacing: 1 });
+  rightY += 12;
+  doc.fillColor(GRAY).fontSize(10).font('Helvetica').text(invoice.issueDate, rightX, rightY);
+  doc.fillColor('#dc2626').fontSize(10).font('Helvetica-Bold').text(invoice.dueDate, rightX + 110, rightY);
+  rightY += 18;
 
-  doc.moveTo(56, 185).lineTo(56 + pageWidth, 185).strokeColor(LIGHT).lineWidth(1).stroke();
+  const tableTop = Math.max(leftY, rightY) + 18;
+  doc.moveTo(56, tableTop - 12).lineTo(56 + pageWidth, tableTop - 12).strokeColor(LIGHT).lineWidth(1).stroke();
 
   // Table header
-  const tableTop = 200;
   doc.rect(56, tableTop, pageWidth, 26).fill(LIGHT);
   doc.fillColor('#374151').fontSize(9).font('Helvetica-Bold');
   doc.text('DESCRIPTION', 66, tableTop + 9);

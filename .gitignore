@@ -29,3 +29,5 @@ server/dist
 *.njsproj
 *.sln
 *.sw?
+sample-general-invoice.pdf
+sample-tax-invoice.pdf
