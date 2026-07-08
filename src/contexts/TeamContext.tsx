@@ -29,7 +29,7 @@ export interface TeamMember {
 interface TeamContextType {
   teamMembers: TeamMember[];
   isLoading: boolean;
-  addTeamMember: (member: Omit<TeamMember, 'id'>) => Promise<void>;
+  addTeamMember: (member: Omit<TeamMember, 'id'> & { password: string }) => Promise<void>;
   updateTeamMember: (id: string, updates: Partial<TeamMember>) => Promise<void>;
   deleteTeamMember: (id: string) => Promise<void>;
   getTeamMemberById: (id: string) => TeamMember | undefined;
@@ -98,11 +98,11 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     else setTeamMembers([]);
   }, [isAuthenticated, fetchTeam]);
 
-  const addTeamMember = async (member: Omit<TeamMember, 'id'>) => {
+  const addTeamMember = async (member: Omit<TeamMember, 'id'> & { password: string }) => {
     const res = await crmApi.createUser({
       name: member.name,
       email: member.email,
-      password: 'Password123',
+      password: member.password,
       role: uiRoleToDb(member.role),
       phone: member.phone,
       avatar: member.avatar,

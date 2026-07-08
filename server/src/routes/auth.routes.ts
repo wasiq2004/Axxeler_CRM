@@ -65,8 +65,9 @@ router.post(
     if (!ALLOW_PUBLIC_SIGNUP) {
       throw new HttpError(403, 'Public sign-up is disabled. Ask an administrator to create your account.');
     }
-    const body = z.object({ email: z.string().email(), password: z.string().min(6), name: z.string().min(1) }).parse(req.body);
-    const exists = await prisma.user.findUnique({ where: { email: body.email } });
+    const body = z.object({ email: z.string().email().transform((e) => e.trim().toLowerCase()), password: z.string().min(6), name: z.string().min(1) }).parse(req.body);
+    // Case-insensitive duplicate check so "A@x.com" and "a@x.com" can't both register.
+    const exists = await prisma.user.findFirst({ where: { email: { equals: body.email, mode: 'insensitive' } } });
     if (exists) throw new HttpError(409, 'Email is already registered');
 
     const user = await prisma.user.create({
@@ -86,8 +87,9 @@ router.post(
   '/login',
   loginLimiter,
   asyncHandler(async (req, res) => {
-    const body = z.object({ email: z.string().email(), password: z.string().min(1) }).parse(req.body);
-    const user = await prisma.user.findUnique({ where: { email: body.email } });
+    const body = z.object({ email: z.string().email().transform((e) => e.trim().toLowerCase()), password: z.string().min(1) }).parse(req.body);
+    // Case-insensitive lookup so login works regardless of how the email was cased.
+    const user = await prisma.user.findFirst({ where: { email: { equals: body.email, mode: 'insensitive' } } });
     if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {
       throw new HttpError(401, 'Invalid email or password');
     }
@@ -130,8 +132,8 @@ router.post(
   '/forgot-password',
   resetLimiter,
   asyncHandler(async (req, res) => {
-    const body = z.object({ email: z.string().email() }).parse(req.body);
-    const user = await prisma.user.findUnique({ where: { email: body.email } });
+    const body = z.object({ email: z.string().email().transform((e) => e.trim().toLowerCase()) }).parse(req.body);
+    const user = await prisma.user.findFirst({ where: { email: { equals: body.email, mode: 'insensitive' } } });
     if (user) {
       const token = signResetToken(user.id);
       const resetUrl = `${env.CLIENT_ORIGIN.replace(/\/$/, '')}/#/reset-password?token=${encodeURIComponent(token)}`;

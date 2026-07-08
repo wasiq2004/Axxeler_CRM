@@ -23,6 +23,8 @@ const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({ isOpen, onClose
     const { addTeamMember } = useTeam();
     const { crmApi } = useApi();
     const [uploading, setUploading] = useState(false);
+    const [password, setPassword] = useState('');
+    const [submitting, setSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -48,16 +50,28 @@ const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({ isOpen, onClose
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (password.length < 6) {
+            alert('Password must be at least 6 characters.');
+            return;
+        }
 
         // Generate avatar URL based on name if no photo uploaded
         const avatarUrl = formData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=6366F1&color=fff`;
 
-        addTeamMember({
-            ...formData,
-            avatar: avatarUrl,
-        });
+        setSubmitting(true);
+        try {
+            await addTeamMember({
+                ...formData,
+                avatar: avatarUrl,
+                password,
+            });
+        } catch (err: any) {
+            alert(err?.message || 'Failed to add team member. The email may already be registered.');
+            setSubmitting(false);
+            return;
+        }
 
         // Reset form
         setFormData({
@@ -70,7 +84,8 @@ const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({ isOpen, onClose
             joinedDate: new Date().toISOString().split('T')[0],
             permissions: DEFAULT_PERMISSIONS,
         });
-
+        setPassword('');
+        setSubmitting(false);
         onClose();
     };
 
@@ -209,6 +224,22 @@ const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({ isOpen, onClose
                                 placeholder="+1-555-000-0000"
                             />
                         </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Initial Password *
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                minLength={6}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                                placeholder="At least 6 characters"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">Share this with the member — they use it to sign in and can change it later.</p>
+                        </div>
                     </div>
 
                     {/* Role & Status */}
@@ -309,9 +340,10 @@ const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({ isOpen, onClose
                         </button>
                         <button
                             type="submit"
-                            className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-dark rounded-lg transition-colors"
+                            disabled={submitting}
+                            className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-dark rounded-lg transition-colors disabled:opacity-60"
                         >
-                            Add Member
+                            {submitting ? 'Adding…' : 'Add Member'}
                         </button>
                     </div>
                 </form>

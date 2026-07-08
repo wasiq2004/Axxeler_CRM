@@ -55,8 +55,8 @@ router.post(
       .object({
         name: z.string(),
         email: z.string().email(),
-        // No shared default password — a random one is generated so accounts are
-        // not created with predictable credentials.
+        // Admin sets the initial password in the Add Member form; if omitted, a
+        // random one is generated (account then needs a password reset to use).
         password: z.string().min(6).optional(),
         role: z.enum(['admin', 'manager', 'team_member']).default('team_member'),
         phone: z.string().optional(),
@@ -73,7 +73,8 @@ router.post(
     const { password, ...userData } = body;
     const rawPassword = password || `Axx-${Math.random().toString(36).slice(2, 10)}!`;
     const user = await prisma.user.create({
-      data: { ...userData, passwordHash: await bcrypt.hash(rawPassword, 12) },
+      // Store the email lowercased so logins match case-insensitively.
+      data: { ...userData, email: userData.email.trim().toLowerCase(), passwordHash: await bcrypt.hash(rawPassword, 12) },
       select: selectUser,
     });
     res.status(201).json({ success: true, data: user });
