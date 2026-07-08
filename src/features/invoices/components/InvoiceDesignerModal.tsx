@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Download, Save, Loader2 } from 'lucide-react';
+import { X, Download, Save, Loader2, FilePlus } from 'lucide-react';
 import type { Invoice, InvoiceTemplate } from '@/types';
 import { useApi } from '@/contexts/ApiContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -30,6 +30,7 @@ const InvoiceDesignerModal: React.FC<InvoiceDesignerModalProps> = ({ invoice, on
   const [html, setHtml] = useState<string>(invoice.customHtml || DEFAULT_INVOICE_TEMPLATE);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const previewCtx = useMemo(
@@ -95,6 +96,24 @@ const InvoiceDesignerModal: React.FC<InvoiceDesignerModalProps> = ({ invoice, on
     }
   };
 
+  // Persist the current design as a NAMED, reusable template (usable on any invoice).
+  const handleSaveAsTemplate = async () => {
+    const name = window.prompt('Name this template so you can reuse it on future invoices:');
+    if (!name || !name.trim()) return;
+    setSavingTemplate(true);
+    setError(null);
+    try {
+      const res = await crmApi.createInvoiceTemplate({ name: name.trim(), html });
+      setTemplates((prev) => [...prev, res.data]);
+      setTemplateId(res.data.id);
+      alert(`Saved "${res.data.name}". It's now available for all invoices.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save template');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col">
@@ -130,6 +149,13 @@ const InvoiceDesignerModal: React.FC<InvoiceDesignerModalProps> = ({ invoice, on
 
         <div className="flex justify-end gap-3 p-5 border-t border-gray-100 shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 text-sm font-bold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Close</button>
+          <button
+            onClick={handleSaveAsTemplate}
+            disabled={savingTemplate}
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-60"
+          >
+            {savingTemplate ? <Loader2 className="w-4 h-4 animate-spin" /> : <FilePlus className="w-4 h-4" />} Save as template
+          </button>
           <button
             onClick={handleSave}
             disabled={saving}

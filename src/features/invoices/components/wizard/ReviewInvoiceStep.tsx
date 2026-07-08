@@ -3,8 +3,9 @@ import type { Invoice, InvoiceItem, InvoiceTemplate } from '@/types';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useApi } from '@/contexts/ApiContext';
-import { FileCode } from 'lucide-react';
+import { FileCode, Plus, Pencil } from 'lucide-react';
 import { buildInvoiceContext, renderInvoiceTemplate, sanitizeInvoiceHtml, DEFAULT_INVOICE_TEMPLATE } from '@/features/invoices/utils/invoiceTemplate';
+import TemplateEditorModal from '@/features/invoices/components/TemplateEditorModal';
 
 interface ReviewFormData {
     clientName: string;
@@ -30,6 +31,8 @@ const ReviewInvoiceStep: React.FC<ReviewInvoiceStepProps> = ({ formData, updateF
     const { companyInfo } = useCompany();
     const { crmApi } = useApi();
     const [templates, setTemplates] = useState<InvoiceTemplate[]>([]);
+    const [editorOpen, setEditorOpen] = useState(false);
+    const [editorInitial, setEditorInitial] = useState<{ id?: string; name?: string; html?: string } | null>(null);
 
     const subtotal = formData.items.reduce((acc, item) => acc + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
     const taxAmount = subtotal * (formData.taxRate / 100);
@@ -53,7 +56,8 @@ const ReviewInvoiceStep: React.FC<ReviewInvoiceStepProps> = ({ formData, updateF
     const selectedTemplate = templates.find((t) => t.id === formData.templateId);
     const templateHtml = selectedTemplate?.html || DEFAULT_INVOICE_TEMPLATE;
 
-    const customPreviewHtml = useMemo(() => {
+    // Real invoice data for live previews (shared by the inline preview + the editor).
+    const previewCtx = useMemo(() => {
         const previewInvoice: Invoice = {
             id: 'preview',
             invoiceNumber: 'Assigned on creation',
@@ -68,9 +72,19 @@ const ReviewInvoiceStep: React.FC<ReviewInvoiceStepProps> = ({ formData, updateF
             paymentTerms: formData.paymentTerms,
             items: formData.items,
         };
-        const ctx = buildInvoiceContext(previewInvoice, companyInfo, currency.symbol);
-        return sanitizeInvoiceHtml(renderInvoiceTemplate(templateHtml, ctx));
-    }, [formData, companyInfo, currency.symbol, templateHtml]);
+        return buildInvoiceContext(previewInvoice, companyInfo, currency.symbol);
+    }, [formData, companyInfo, currency.symbol]);
+
+    const customPreviewHtml = useMemo(
+        () => sanitizeInvoiceHtml(renderInvoiceTemplate(templateHtml, previewCtx)),
+        [templateHtml, previewCtx],
+    );
+
+    // Add or update a template in the local list and select it for this invoice.
+    const handleTemplateSaved = (t: InvoiceTemplate) => {
+        setTemplates((prev) => (prev.some((x) => x.id === t.id) ? prev.map((x) => (x.id === t.id ? t : x)) : [...prev, t]));
+        updateFormData({ templateId: t.id });
+    };
 
     return (
         <div className="animate-fadeIn space-y-8">
@@ -80,23 +94,49 @@ const ReviewInvoiceStep: React.FC<ReviewInvoiceStepProps> = ({ formData, updateF
                     <FileCode className="w-4 h-4 text-primary" />
                     <label className="text-xs font-bold text-gray-600 uppercase tracking-widest">Invoice Design</label>
                 </div>
-                <select
-                    value={formData.templateId ?? STANDARD}
-                    onChange={(e) => updateFormData({ templateId: e.target.value || undefined })}
-                    className="w-full sm:w-80 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 outline-none"
-                >
-                    <option value={STANDARD}>Standard (built-in)</option>
-                    {templates.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}{t.isDefault ? ' (default)' : ''}</option>
-                    ))}
-                </select>
-                <p className="mt-2 text-xs text-gray-400">This design is used when you generate the invoice PDF. Manage designs under Invoices → Templates.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                    <select
+                        value={formData.templateId ?? STANDARD}
+                        onChange={(e) => updateFormData({ templateId: e.target.value || undefined })}
+                        className="w-full sm:w-72 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 outline-none"
+                    >
+                        <option value={STANDARD}>Standard (built-in)</option>
+                        {templates.map((t) => (
+                            <option key={t.id} value={t.id}>{t.name}{t.isDefault ? ' (default)' : ''}</option>
+                        ))}
+                    </select>
+                    <button
+                        type="button"
+                        onClick={() => { setEditorInitial({ html: templateHtml }); setEditorOpen(true); }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary-dark transition-all"
+                    >
+                        <Plus className="w-4 h-4" /> Custom Template
+                    </button>
+                    {selectedTemplate && (
+                        <button
+                            type="button"
+                            onClick={() => { setEditorInitial({ id: selectedTemplate.id, name: selectedTemplate.name, html: selectedTemplate.html }); setEditorOpen(true); }}
+                            className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all"
+                        >
+                            <Pencil className="w-4 h-4" /> Edit
+                        </button>
+                    )}
+                </div>
+                <p className="mt-2 text-xs text-gray-400">Pick a saved design, or create your own reusable template — it’s stored for future invoices. Also manageable under Invoices → Templates.</p>
                 <div className="mt-4 max-h-[420px] overflow-auto bg-gray-100 rounded-xl p-3 border border-gray-200">
                     <div className="bg-white shadow-sm mx-auto" style={{ width: 800 }}>
                         <div dangerouslySetInnerHTML={{ __html: customPreviewHtml }} />
                     </div>
                 </div>
             </div>
+
+            <TemplateEditorModal
+                open={editorOpen}
+                onClose={() => setEditorOpen(false)}
+                previewCtx={previewCtx}
+                initial={editorInitial}
+                onSaved={handleTemplateSaved}
+            />
 
             <div className="bg-gray-50 rounded-xl p-8 border border-gray-200">
                 {/* Header Preview */}

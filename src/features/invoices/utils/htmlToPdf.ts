@@ -22,6 +22,20 @@ export const generateInvoicePdf = async (html: string, filename: string): Promis
   document.body.appendChild(host);
 
   try {
+    // Wait for any images (e.g. the company logo) to finish loading, otherwise
+    // html2canvas can capture the invoice before the logo appears.
+    const images = Array.from(host.querySelectorAll('img'));
+    await Promise.all(
+      images.map((img) =>
+        img.complete
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => {
+              img.onload = () => resolve();
+              img.onerror = () => resolve();
+            }),
+      ),
+    );
+
     const canvas = await html2canvas(host, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
 
     const pdf = new jsPDF({ unit: 'pt', format: 'a4' });

@@ -1,15 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Printer, Download, Edit, FileText, Loader2, FileCode } from 'lucide-react';
+import { ArrowLeft, Printer, Download, Edit, Loader2, FileCode } from 'lucide-react';
 import InvoiceDesignerModal from '@/features/invoices/components/InvoiceDesignerModal';
-import { buildInvoiceContext, renderInvoiceTemplate } from '@/features/invoices/utils/invoiceTemplate';
+import { buildInvoiceContext, renderInvoiceTemplate, sanitizeInvoiceHtml, resolveInvoiceHtml } from '@/features/invoices/utils/invoiceTemplate';
 import { generateInvoicePdf } from '@/features/invoices/utils/htmlToPdf';
-import type { Invoice, InvoiceStatus } from '@/types';
+import type { InvoiceStatus } from '@/types';
 import { useInvoices } from '@/contexts/InvoicesContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import Button from '@/components/ui/Button';
-import { getInvoiceStatusMeta } from '@/features/invoices/constants';
 import { useApi } from '@/contexts/ApiContext';
 
 const InvoiceDetailPage: React.FC = () => {
@@ -18,20 +17,29 @@ const InvoiceDetailPage: React.FC = () => {
   const { invoices, updateInvoice } = useInvoices();
   const { crmApi } = useApi();
   const { companyInfo } = useCompany();
-  const { currency, formatCurrency } = useCurrency();
-  
+  const { currency } = useCurrency();
+
   const invoice = invoices.find(inv => inv.id === id);
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [showDesigner, setShowDesigner] = useState(false);
+  // The invoice's HTML (custom design / template / default) — the single design
+  // shared by the on-screen view, the PDF download and the designer.
+  const [rawHtml, setRawHtml] = useState<string>('');
 
-  const { subtotal, taxAmount, total } = useMemo(() => {
-    if (!invoice) return { subtotal: 0, taxAmount: 0, total: 0 };
-    const subtotal = invoice.items.reduce((acc, item) => acc + item.quantity * item.price, 0);
-    const taxAmount = subtotal * (invoice.taxRate / 100);
-    const total = subtotal + taxAmount;
-    return { subtotal, taxAmount, total };
-  }, [invoice]);
+  useEffect(() => {
+    if (!invoice) return;
+    let cancelled = false;
+    resolveInvoiceHtml(invoice, crmApi).then((html) => { if (!cancelled) setRawHtml(html); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoice?.id, invoice?.customHtml, invoice?.templateId]);
+
+  const previewHtml = useMemo(() => {
+    if (!invoice || !rawHtml) return '';
+    const ctx = buildInvoiceContext(invoice, companyInfo, currency.symbol);
+    return sanitizeInvoiceHtml(renderInvoiceTemplate(rawHtml, ctx));
+  }, [invoice, rawHtml, companyInfo, currency.symbol]);
 
   if (!invoice) {
     return (
@@ -41,40 +49,28 @@ const InvoiceDetailPage: React.FC = () => {
       </div>
     );
   }
-  
-  const statusMeta = getInvoiceStatusMeta(invoice.status);
 
   const handleDownloadPDF = async () => {
     if (!invoice) return;
     setIsDownloading(true);
     try {
-      // If the invoice has a saved custom design, render THAT (client-side);
-      // otherwise fall back to the server's standard PDFKit layout.
-      let html = invoice.customHtml || undefined;
-      if (!html && invoice.templateId) {
-        const res = await crmApi.getInvoiceTemplates();
-        html = (res.data || []).find((t: any) => t.id === invoice.templateId)?.html;
-      }
-      if (html) {
-        const ctx = buildInvoiceContext(invoice, companyInfo, currency.symbol);
-        await generateInvoicePdf(renderInvoiceTemplate(html, ctx), `Invoice_${invoice.invoiceNumber}.pdf`);
-      } else {
-        await crmApi.downloadInvoicePdf(invoice.id);
-      }
+      const html = rawHtml || (await resolveInvoiceHtml(invoice, crmApi));
+      const ctx = buildInvoiceContext(invoice, companyInfo, currency.symbol);
+      await generateInvoicePdf(renderInvoiceTemplate(html, ctx), `Invoice_${invoice.invoiceNumber}.pdf`);
     } catch (err) {
       console.error('PDF download failed:', err);
+      alert('Could not generate the PDF. Please try again.');
     } finally {
       setIsDownloading(false);
     }
   };
 
-  // Add function to update invoice status
   const updateStatus = (newStatus: InvoiceStatus) => {
     if (invoice) {
       updateInvoice(invoice.id, { status: newStatus });
     }
   };
-  
+
   return (
     <div className="space-y-6">
       <Link to="/invoices" className="text-sm text-primary hover:underline flex items-center mb-2">
@@ -158,96 +154,11 @@ const InvoiceDetailPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 sm:p-8 lg:p-10 invoice-container">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
-          <div>
-            <div className="flex items-center mb-2">
-              <img src={companyInfo.logo} alt={companyInfo.name} className="h-10 mr-3" />
-              <h2 className="text-xl font-bold text-primary">{companyInfo.name}</h2>
-            </div>
-            <p className="text-gray-500 whitespace-pre-line">{companyInfo.address}</p>
-            <p className="text-gray-500">Phone: {companyInfo.phone}</p>
-            <p className="text-gray-500">Email: {companyInfo.email}</p>
-            <p className="text-gray-500">Website: {companyInfo.website}</p>
-          </div>
-          <div className="sm:text-right">
-            <p className="text-2xl font-extrabold tracking-tight text-gray-900 mb-2">
-              {invoice.invoiceType === 'Tax' ? 'TAX INVOICE' : 'INVOICE'}
-            </p>
-            <div className={`inline-block px-4 py-2 rounded-lg border-2 ${statusMeta.badge.bg} ${statusMeta.badge.border}`}>
-              <span className={`text-lg font-bold uppercase ${statusMeta.badge.text}`}>{statusMeta.label}</span>
-            </div>
-            <p className="mt-2 text-gray-600"><strong>Amount Due:</strong> <span className="text-xl font-bold">{formatCurrency(total)}</span></p>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mb-8 pb-8 border-b">
-            <div>
-                <h3 className="text-sm font-semibold text-gray-500 uppercase">Billed To</h3>
-                <p className="font-bold">{invoice.clientName}</p>
-                <p>{invoice.clientCompany}</p>
-                <p>{invoice.clientEmail}</p>
-            </div>
-            <div>
-                <h3 className="text-sm font-semibold text-gray-500 uppercase">Invoice Number</h3>
-                <p className="font-bold">{invoice.invoiceNumber}</p>
-            </div>
-             <div>
-                <h3 className="text-sm font-semibold text-gray-500 uppercase">Dates</h3>
-                <p><strong>Issued:</strong> {invoice.issueDate}</p>
-                 <p><strong>Due:</strong> {invoice.dueDate}</p>
-            </div>
-        </div>
-
-        <div className="overflow-x-auto">
-            <table className="min-w-full">
-                <thead>
-                    <tr className="border-b border-gray-300 text-left text-sm text-gray-500 uppercase">
-                        <th className="py-2 pr-4">Description</th>
-                        <th className="py-2 px-4 text-center">Qty</th>
-                        <th className="py-2 px-4 text-right">Unit Price</th>
-                        <th className="py-2 pl-4 text-right">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {invoice.items.map(item => (
-                        <tr key={item.id} className="border-b border-gray-200">
-                            <td className="py-3 pr-4 font-medium text-gray-800">{item.description}</td>
-                            <td className="py-3 px-4 text-center text-gray-600">{item.quantity}</td>
-                            <td className="py-3 px-4 text-right text-gray-600">{currency.symbol}{item.price.toLocaleString()}</td>
-                            <td className="py-3 pl-4 text-right font-semibold text-gray-800">{currency.symbol}{(item.quantity * item.price).toLocaleString()}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-
-        <div className="flex justify-end mt-6">
-            <div className="w-full max-w-xs space-y-2">
-                <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{currency.symbol}{subtotal.toLocaleString()}</span></div>
-                {invoice.taxRate > 0 && (
-                  <div className="flex justify-between text-gray-600"><span>Tax ({invoice.taxRate}%)</span><span>{currency.symbol}{taxAmount.toLocaleString()}</span></div>
-                )}
-                <div className="flex justify-between text-gray-800 font-bold text-lg border-t pt-2 mt-2"><span>Total</span><span>{currency.symbol}{total.toLocaleString()}</span></div>
-            </div>
-        </div>
-
-        {(invoice.paymentTerms || companyInfo.bankDetails) && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-8 pt-6 border-t border-gray-100">
-            {invoice.paymentTerms && (
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Payment Ref / Terms</h4>
-                <p className="text-sm text-gray-700 whitespace-pre-line">{invoice.paymentTerms}</p>
-              </div>
-            )}
-            {companyInfo.bankDetails && (
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Bank Account Details</h4>
-                <p className="text-sm text-gray-700 whitespace-pre-line">{companyInfo.bankDetails}</p>
-              </div>
-            )}
-          </div>
-        )}
+      {/* Single source of truth: the same template that the PDF + designer use. */}
+      <div className="bg-white rounded-lg shadow-sm overflow-x-auto invoice-container">
+        {previewHtml
+          ? <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+          : <div className="p-16 text-center text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>}
       </div>
 
       {showDesigner && <InvoiceDesignerModal invoice={invoice} onClose={() => setShowDesigner(false)} />}

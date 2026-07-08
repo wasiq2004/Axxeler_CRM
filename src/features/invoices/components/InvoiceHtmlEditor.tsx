@@ -36,7 +36,7 @@ const InvoiceHtmlEditor: React.FC<InvoiceHtmlEditorProps> = ({ html, onChange, p
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">Merge fields (click to insert)</p>
+        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">Dynamic fields (click to insert)</p>
         <div className="flex flex-wrap gap-1.5">
           {MERGE_FIELDS.map((f) => (
             <button
