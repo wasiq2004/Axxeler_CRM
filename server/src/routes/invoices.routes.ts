@@ -59,8 +59,17 @@ const loadLogoBuffer = async (logo: string): Promise<Buffer | null> => {
       const res = await axios.get<ArrayBuffer>(logo, { responseType: 'arraybuffer', timeout: 5000, maxContentLength: 5 * 1024 * 1024 });
       buf = Buffer.from(res.data);
     } else if (logo.startsWith('/api/uploads/')) {
+      // Uploaded via Settings → read from the uploads volume on disk.
       const file = path.join(env.UPLOAD_DIR, path.basename(logo));
       if (fs.existsSync(file)) buf = fs.readFileSync(file);
+    } else if (logo.startsWith('/')) {
+      // A frontend public asset (e.g. /Vogue_Consult_NoBg.png) — fetch it via the
+      // client origin, which is served by the frontend container.
+      const url = `${(env.CLIENT_ORIGIN || '').replace(/\/$/, '')}${logo}`;
+      if (/^https?:\/\//i.test(url)) {
+        const res = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 5000, maxContentLength: 5 * 1024 * 1024 });
+        buf = Buffer.from(res.data);
+      }
     }
     return buf && isPngOrJpeg(buf) ? buf : null;
   } catch {

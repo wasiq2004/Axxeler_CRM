@@ -31,7 +31,8 @@ async function main() {
 
   await prisma.companySetting.upsert({
     where:  { id: 'company' },
-    update: {},
+    // Keep the invoice logo pinned to the client's brand asset on every deploy.
+    update: { logo: '/Vogue_Consult_NoBg.png' },
     create: {
       id:       'company',
       name:     'Axxeler CRM Inc.',
@@ -39,7 +40,7 @@ async function main() {
       phone:    '+1 (555) 123-4567',
       email:    'info@axxeler.com',
       website:  'www.axxeler.com',
-      logo:     '/axxeler-logo-white.png',
+      logo:     '/Vogue_Consult_NoBg.png',
       currency: 'USD',
     },
   });

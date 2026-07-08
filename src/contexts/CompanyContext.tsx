@@ -25,7 +25,7 @@ const DEFAULT_COMPANY: CompanyInfo = {
   phone: '',
   email: '',
   website: '',
-  logo: '/logo.png',
+  logo: '/Vogue_Consult_NoBg.png',
 };
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);

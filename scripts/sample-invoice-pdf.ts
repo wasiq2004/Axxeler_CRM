@@ -12,9 +12,9 @@ const PDF_SAFE_SYMBOLS: Record<string, string> = { '₹': 'Rs. ', 'د.إ': 'AED 
 const rawSymbol = CURRENCY_SYMBOLS['INR'];
 const pdfSymbol = PDF_SAFE_SYMBOLS[rawSymbol] || rawSymbol;
 
-// Use the real logo to verify image embedding (skip if not present).
+// Use the client's brand logo to verify image embedding (skip if not present).
 let logoBuf: Buffer | null = null;
-try { logoBuf = fs.readFileSync('public/black logo.png'); } catch { logoBuf = null; }
+try { logoBuf = fs.readFileSync('public/Vogue_Consult_NoBg.png'); } catch { logoBuf = null; }
 
 const branding = {
   name: 'Axxeler CRM Inc.',

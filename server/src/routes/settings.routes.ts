@@ -65,7 +65,7 @@ router.put(
         phone: body.phone || '',
         email: body.email || 'info@example.com',
         website: body.website || '',
-        logo: body.logo || '/axxeler-logo-white.png',
+        logo: body.logo || '/Vogue_Consult_NoBg.png',
         currency: body.currency || 'USD',
         bankDetails: body.bankDetails || '',
       },
