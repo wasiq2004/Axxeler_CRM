@@ -29,7 +29,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 // Load company branding (name, contact, logo, currency) for documents/emails.
 const getCompanyBranding = async () => {
   const company = await prisma.companySetting.findUnique({ where: { id: 'company' } });
-  const currencyCode = company?.currency || 'USD';
+  const currencyCode = company?.currency || 'INR';
   return {
     name: company?.name?.trim() || 'Your Company',
     address: company?.address?.trim() || '',

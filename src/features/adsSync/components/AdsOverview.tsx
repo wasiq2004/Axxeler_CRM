@@ -11,7 +11,7 @@ import {
     Line,
     Legend
 } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, DollarSign, Users, MousePointer, Eye } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, IndianRupee, Users, MousePointer, Eye } from 'lucide-react';
 import type { MetaCampaign } from '../../../contexts/MetaAccountContext';
 
 
@@ -48,11 +48,11 @@ const AdsOverview: React.FC<AdsOverviewProps> = ({ campaigns }) => {
                         <div>
                             <p className="text-sm font-medium text-gray-500">Total Spend</p>
                             <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                                ${totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ₹{totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </h3>
                         </div>
                         <div className="p-2 bg-blue-50 rounded-lg">
-                            <DollarSign className="w-5 h-5 text-blue-600" />
+                            <IndianRupee className="w-5 h-5 text-blue-600" />
                         </div>
                     </div>
                     <div className="flex items-center mt-4 text-xs text-green-600 font-medium">
@@ -102,7 +102,7 @@ const AdsOverview: React.FC<AdsOverviewProps> = ({ campaigns }) => {
                         <div>
                             <p className="text-sm font-medium text-gray-500">Avg. CPL</p>
                             <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                                ${cpl.toFixed(2)}
+                                ₹{cpl.toFixed(2)}
                             </h3>
                         </div>
                         <div className="p-2 bg-orange-50 rounded-lg">
@@ -111,7 +111,7 @@ const AdsOverview: React.FC<AdsOverviewProps> = ({ campaigns }) => {
                     </div>
                     <div className="flex items-center mt-4 text-xs text-green-600 font-medium">
                         <ArrowUpRight className="w-3 h-3 mr-1" />
-                        <span>Target: $15.00</span>
+                        <span>Target: ₹15.00</span>
                     </div>
                 </div>
             </div>
@@ -133,7 +133,7 @@ const AdsOverview: React.FC<AdsOverviewProps> = ({ campaigns }) => {
                                     itemStyle={{ color: '#374151' }}
                                 />
                                 <Legend />
-                                <Bar yAxisId="left" dataKey="spend" name="Spend ($)" fill="#0079C1" radius={[4, 4, 0, 0]} maxBarSize={50} />
+                                <Bar yAxisId="left" dataKey="spend" name="Spend (₹)" fill="#0079C1" radius={[4, 4, 0, 0]} maxBarSize={50} />
                                 <Bar yAxisId="right" dataKey="leads" name="Leads" fill="#10B981" radius={[4, 4, 0, 0]} maxBarSize={50} />
                             </BarChart>
                         </ResponsiveContainer>

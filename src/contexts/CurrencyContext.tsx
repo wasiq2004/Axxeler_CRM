@@ -17,7 +17,7 @@ const CURRENCIES: Record<string, Currency> = {
   GBP: { code: 'GBP', symbol: '£', name: 'British Pound', icon: PoundSterling },
 };
 
-const FALLBACK_CODE = 'USD';
+const FALLBACK_CODE = 'INR';
 
 interface CurrencyContextType {
   currency: Currency;

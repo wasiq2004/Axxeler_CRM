@@ -2,6 +2,7 @@ import React from 'react';
 import {
   TemplateConfig,
   FONT_OPTIONS,
+  LAYOUT_OPTIONS,
   buildTemplateFromConfig,
   renderInvoiceTemplate,
   sanitizeInvoiceHtml,
@@ -13,26 +14,67 @@ interface VisualTemplateBuilderProps {
   previewCtx: Record<string, string>;
 }
 
-const HEADER_STYLES: { value: TemplateConfig['headerStyle']; label: string; hint: string }[] = [
-  { value: 'line', label: 'Underline', hint: 'Accent line under the header' },
-  { value: 'band', label: 'Color band', hint: 'Full-width colored header' },
-  { value: 'minimal', label: 'Minimal', hint: 'Clean, no divider' },
+const SWATCHES = ['#0079C1', '#0f172a', '#7c3aed', '#059669', '#dc2626', '#d97706', '#db2777', '#0891b2'];
+const SIZES: { value: 'sm' | 'md' | 'lg'; label: string }[] = [
+  { value: 'sm', label: 'Small' },
+  { value: 'md', label: 'Medium' },
+  { value: 'lg', label: 'Large' },
 ];
 
-const SWATCHES = ['#0079C1', '#0f172a', '#7c3aed', '#059669', '#dc2626', '#d97706', '#db2777', '#0891b2'];
-
-// No-HTML template editing: tweak a few options and see the invoice update live.
 const VisualTemplateBuilder: React.FC<VisualTemplateBuilderProps> = ({ config, onChange, previewCtx }) => {
   const set = (patch: Partial<TemplateConfig>) => onChange({ ...config, ...patch });
-
   const previewHtml = sanitizeInvoiceHtml(renderInvoiceTemplate(buildTemplateFromConfig(config), previewCtx));
 
   const labelCls = 'text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2 block';
+  const Segmented = <T extends string>({ value, options, onPick }: { value: T; options: { value: T; label: string }[]; onPick: (v: T) => void }) => (
+    <div className="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onPick(o.value)}
+          className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${value === o.value ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+  const Toggle = ({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: (v: boolean) => void }) => (
+    <label className="flex items-center justify-between py-2">
+      <span className="text-sm font-medium text-gray-700">{label}</span>
+      <button
+        type="button"
+        onClick={() => onToggle(!checked)}
+        className={`relative w-10 h-6 rounded-full transition-colors ${checked ? 'bg-primary' : 'bg-gray-300'}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-4' : ''}`} />
+      </button>
+    </label>
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       {/* Controls */}
-      <div className="space-y-5">
+      <div className="space-y-5 max-h-[520px] overflow-y-auto pr-1">
+        <div>
+          <span className={labelCls}>Layout</span>
+          <div className="grid grid-cols-2 gap-2">
+            {LAYOUT_OPTIONS.map((l) => (
+              <button
+                key={l.value}
+                type="button"
+                onClick={() => set({ layout: l.value })}
+                title={l.hint}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${config.layout === l.value ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'}`}
+              >
+                <span className={`block text-sm font-bold ${config.layout === l.value ? 'text-primary' : 'text-gray-800'}`}>{l.label}</span>
+                <span className="block text-[10px] text-gray-400 mt-0.5 leading-tight">{l.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div>
           <span className={labelCls}>Brand color</span>
           <div className="flex items-center gap-2 flex-wrap">
@@ -46,33 +88,20 @@ const VisualTemplateBuilder: React.FC<VisualTemplateBuilderProps> = ({ config, o
                 aria-label={c}
               />
             ))}
-            <label className="inline-flex items-center gap-2 ml-1">
-              <input
-                type="color"
-                value={config.accentColor}
-                onChange={(e) => set({ accentColor: e.target.value })}
-                className="w-8 h-8 rounded cursor-pointer border border-gray-200"
-              />
-              <span className="text-xs text-gray-400">Custom</span>
+            <label className="inline-flex items-center gap-1 ml-1">
+              <input type="color" value={config.accentColor} onChange={(e) => set({ accentColor: e.target.value })} className="w-8 h-8 rounded cursor-pointer border border-gray-200" />
             </label>
           </div>
         </div>
 
-        <div>
-          <span className={labelCls}>Header style</span>
-          <div className="grid grid-cols-3 gap-2">
-            {HEADER_STYLES.map((h) => (
-              <button
-                key={h.value}
-                type="button"
-                onClick={() => set({ headerStyle: h.value })}
-                title={h.hint}
-                className={`p-3 rounded-xl border-2 text-left transition-all ${config.headerStyle === h.value ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'}`}
-              >
-                <span className={`block text-sm font-bold ${config.headerStyle === h.value ? 'text-primary' : 'text-gray-800'}`}>{h.label}</span>
-                <span className="block text-[10px] text-gray-400 mt-0.5 leading-tight">{h.hint}</span>
-              </button>
-            ))}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <span className={labelCls}>Text color</span>
+            <input type="color" value={config.textColor} onChange={(e) => set({ textColor: e.target.value })} className="w-full h-9 rounded cursor-pointer border border-gray-200" />
+          </div>
+          <div>
+            <span className={labelCls}>Text size</span>
+            <Segmented value={config.fontScale} options={SIZES} onPick={(v) => set({ fontScale: v })} />
           </div>
         </div>
 
@@ -83,16 +112,29 @@ const VisualTemplateBuilder: React.FC<VisualTemplateBuilderProps> = ({ config, o
             onChange={(e) => set({ fontFamily: e.target.value })}
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 outline-none"
           >
-            {FONT_OPTIONS.map((f) => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
+            {FONT_OPTIONS.map((f) => (<option key={f.value} value={f.value}>{f.label}</option>))}
           </select>
         </div>
 
-        <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-          <span className="text-sm font-semibold text-gray-700">Show company logo</span>
-          <input type="checkbox" checked={config.showLogo} onChange={(e) => set({ showLogo: e.target.checked })} className="w-5 h-5" />
-        </label>
+        <div className="grid grid-cols-2 gap-4 items-start">
+          <div>
+            <span className={labelCls}>Logo size</span>
+            <Segmented value={config.logoSize} options={SIZES} onPick={(v) => set({ logoSize: v })} />
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-gray-100">
+          <span className={labelCls}>Show / hide</span>
+          <div className="divide-y divide-gray-50">
+            <Toggle label="Company logo" checked={config.showLogo} onToggle={(v) => set({ showLogo: v })} />
+            <Toggle label="Company address" checked={config.showAddress} onToggle={(v) => set({ showAddress: v })} />
+            <Toggle label="Website" checked={config.showWebsite} onToggle={(v) => set({ showWebsite: v })} />
+            <Toggle label="Payment terms" checked={config.showPaymentTerms} onToggle={(v) => set({ showPaymentTerms: v })} />
+            <Toggle label="Bank details" checked={config.showBankDetails} onToggle={(v) => set({ showBankDetails: v })} />
+            <Toggle label="Colored table header" checked={config.accentTableHeader} onToggle={(v) => set({ accentTableHeader: v })} />
+            <Toggle label="Rounded corners" checked={config.rounded} onToggle={(v) => set({ rounded: v })} />
+          </div>
+        </div>
 
         <div>
           <span className={labelCls}>Footer note</span>

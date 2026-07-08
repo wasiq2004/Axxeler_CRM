@@ -111,9 +111,11 @@ export const buildInvoiceContext = (
   </table>`;
 
   const logoUrl = (company.logo || '').toString().trim();
-  const companyLogoImg = logoUrl
-    ? `<img src="${esc(logoUrl)}" alt="${esc(company.name)}" style="height:56px;max-width:220px;object-fit:contain;display:block;margin-bottom:14px;" />`
-    : '';
+  const mkLogo = (h: number) =>
+    logoUrl
+      ? `<img src="${esc(logoUrl)}" alt="${esc(company.name)}" style="height:${h}px;max-width:${h * 4}px;object-fit:contain;display:block;margin-bottom:14px;" />`
+      : '';
+  const companyLogoImg = mkLogo(56);
 
   return {
     companyName: esc(company.name),
@@ -124,6 +126,8 @@ export const buildInvoiceContext = (
     companyLogo: esc(company.logo),
     // Ready-to-drop <img> for the logo (empty when none set, so no broken image).
     companyLogoImg,
+    companyLogoImgSm: mkLogo(40),
+    companyLogoImgLg: mkLogo(80),
     invoiceNumber: esc(invoice.invoiceNumber),
     invoiceType: esc(invoiceType),
     invoiceTypeLabel: invoiceType === 'Tax' ? 'TAX INVOICE' : 'INVOICE',
@@ -206,14 +210,23 @@ export const DEFAULT_INVOICE_TEMPLATE = `<div style="max-width:800px;margin:0 au
 </div>`;
 
 // ─── Visual (no-HTML) template builder ────────────────────────────────────────
-// A small set of options that non-technical users can tweak; we generate the
+// A professional set of options non-technical users can tweak; we generate the
 // full template HTML from them. The chosen options are embedded in the template
 // as a base64 comment so the builder can reopen and edit them later.
 export interface TemplateConfig {
+  layout: 'classic' | 'band' | 'minimal' | 'sidebar';
   accentColor: string;
+  textColor: string;
   fontFamily: string;
-  headerStyle: 'line' | 'band' | 'minimal';
+  fontScale: 'sm' | 'md' | 'lg';
   showLogo: boolean;
+  logoSize: 'sm' | 'md' | 'lg';
+  accentTableHeader: boolean;
+  rounded: boolean;
+  showAddress: boolean;
+  showWebsite: boolean;
+  showPaymentTerms: boolean;
+  showBankDetails: boolean;
   footerNote: string;
 }
 
@@ -224,11 +237,27 @@ export const FONT_OPTIONS: { label: string; value: string }[] = [
   { label: 'Monospace', value: "'Courier New',monospace" },
 ];
 
+export const LAYOUT_OPTIONS: { value: TemplateConfig['layout']; label: string; hint: string }[] = [
+  { value: 'classic', label: 'Classic', hint: 'Company left, accent underline' },
+  { value: 'band', label: 'Color band', hint: 'Bold colored header bar' },
+  { value: 'minimal', label: 'Minimal', hint: 'Clean, lots of whitespace' },
+  { value: 'sidebar', label: 'Sidebar', hint: 'Accent strip down the side' },
+];
+
 export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
+  layout: 'classic',
   accentColor: '#0079C1',
+  textColor: '#1e293b',
   fontFamily: FONT_OPTIONS[0].value,
-  headerStyle: 'line',
+  fontScale: 'md',
   showLogo: true,
+  logoSize: 'md',
+  accentTableHeader: false,
+  rounded: false,
+  showAddress: true,
+  showWebsite: true,
+  showPaymentTerms: true,
+  showBankDetails: true,
   footerNote: 'Thank you for your business.',
 };
 
@@ -239,7 +268,10 @@ export const parseTemplateConfig = (html: string): TemplateConfig | null => {
   if (!m) return null;
   try {
     const json = typeof atob === 'function' ? atob(m[1]) : Buffer.from(m[1], 'base64').toString('utf-8');
-    return { ...DEFAULT_TEMPLATE_CONFIG, ...JSON.parse(json) };
+    const raw = JSON.parse(json) as Partial<TemplateConfig> & { headerStyle?: string };
+    // Back-compat: earlier templates used `headerStyle` instead of `layout`.
+    if (!raw.layout && raw.headerStyle) raw.layout = raw.headerStyle === 'band' ? 'band' : raw.headerStyle === 'minimal' ? 'minimal' : 'classic';
+    return { ...DEFAULT_TEMPLATE_CONFIG, ...raw };
   } catch {
     return null;
   }
@@ -250,79 +282,110 @@ export const stripTemplateConfig = (html: string): string =>
 
 // Generate a complete invoice template (with {{merge}} fields intact) from config.
 export const buildTemplateFromConfig = (cfg: TemplateConfig): string => {
-  const accent = cfg.accentColor || '#0079C1';
-  const font = cfg.fontFamily || DEFAULT_TEMPLATE_CONFIG.fontFamily;
-  const footer = esc(cfg.footerNote || '');
-  const logo = cfg.showLogo ? '{{companyLogoImg}}' : '';
-  const json = JSON.stringify(cfg);
-  const b64 = typeof btoa === 'function' ? btoa(json) : Buffer.from(json, 'utf-8').toString('base64');
+  const c = { ...DEFAULT_TEMPLATE_CONFIG, ...cfg };
+  const accent = c.accentColor || '#0079C1';
+  const text = c.textColor || '#1e293b';
+  const font = c.fontFamily || DEFAULT_TEMPLATE_CONFIG.fontFamily;
+  const base = c.fontScale === 'sm' ? 12 : c.fontScale === 'lg' ? 15 : 13.5;
+  const name = base + 12, title = base + 16, totalSz = base + 3, small = base - 1.5, label = Math.max(9.5, base - 2.5);
+  const radius = c.rounded ? '14px' : '0';
+  const logoField = !c.showLogo ? '' : c.logoSize === 'sm' ? '{{companyLogoImgSm}}' : c.logoSize === 'lg' ? '{{companyLogoImgLg}}' : '{{companyLogoImg}}';
+  const footer = esc(c.footerNote || '');
+  const b64 = (() => { const j = JSON.stringify(c); return typeof btoa === 'function' ? btoa(j) : Buffer.from(j, 'utf-8').toString('base64'); })();
 
-  let header: string;
-  if (cfg.headerStyle === 'band') {
-    header = `<div style="background:${accent};color:#ffffff;padding:32px 40px;display:flex;justify-content:space-between;align-items:flex-start;">
-      <div>${cfg.showLogo ? `<div style="background:#fff;display:inline-block;padding:6px 10px;border-radius:8px;margin-bottom:12px;">{{companyLogoImg}}</div>` : ''}
-        <h1 style="margin:0;font-size:24px;font-weight:800;">{{companyName}}</h1>
-        <p style="margin:6px 0 0;white-space:pre-line;font-size:12px;opacity:.9;">{{companyAddress}}</p>
-        <p style="margin:4px 0 0;font-size:12px;opacity:.9;">{{companyPhone}} · {{companyEmail}}</p>
+  // Company + client blocks (reused across layouts).
+  const addr = c.showAddress ? `<p style="margin:6px 0 0;white-space:pre-line;color:#64748b;font-size:${small}px;">{{companyAddress}}</p>` : '';
+  const web = c.showWebsite ? `<p style="margin:4px 0 0;color:#64748b;font-size:${small}px;">{{companyWebsite}}</p>` : '';
+  const companyLight = `<div>${logoField}
+      <h1 style="margin:0;font-size:${name}px;font-weight:800;color:${accent};">{{companyName}}</h1>
+      ${addr}
+      <p style="margin:4px 0 0;color:#64748b;font-size:${small}px;">{{companyPhone}} · {{companyEmail}}</p>
+      ${web}
+    </div>`;
+  const metaLight = `<div style="text-align:right;">
+      <h2 style="margin:0;font-size:${title}px;font-weight:800;letter-spacing:2px;color:#0f172a;">{{invoiceTypeLabel}}</h2>
+      <p style="margin:6px 0 0;color:#64748b;font-size:${small}px;">#{{invoiceNumber}}</p>
+      <span style="display:inline-block;margin-top:8px;padding:4px 14px;border-radius:20px;background:${accent}1a;color:${accent};font-size:${label}px;font-weight:700;text-transform:uppercase;">{{status}}</span>
+    </div>`;
+
+  // Header per layout.
+  let headerHtml: string;
+  let bodyTopPad = '44px';
+  const pad = '44px';
+  if (c.layout === 'band') {
+    const addrD = c.showAddress ? `<p style="margin:6px 0 0;white-space:pre-line;font-size:${small}px;opacity:.9;">{{companyAddress}}</p>` : '';
+    const webD = c.showWebsite ? `<p style="margin:4px 0 0;font-size:${small}px;opacity:.9;">{{companyWebsite}}</p>` : '';
+    headerHtml = `<div style="background:${accent};color:#fff;padding:32px ${pad};display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>${c.showLogo ? `<div style="background:#fff;display:inline-block;padding:6px 10px;border-radius:8px;margin-bottom:12px;">${logoField}</div>` : ''}
+        <h1 style="margin:0;font-size:${name}px;font-weight:800;">{{companyName}}</h1>
+        ${addrD}
+        <p style="margin:4px 0 0;font-size:${small}px;opacity:.9;">{{companyPhone}} · {{companyEmail}}</p>
+        ${webD}
       </div>
       <div style="text-align:right;">
-        <h2 style="margin:0;font-size:28px;font-weight:800;letter-spacing:2px;">{{invoiceTypeLabel}}</h2>
-        <p style="margin:6px 0 0;font-size:12px;opacity:.9;">#{{invoiceNumber}}</p>
-        <span style="display:inline-block;margin-top:8px;padding:4px 14px;border-radius:20px;background:rgba(255,255,255,.2);font-size:12px;font-weight:700;text-transform:uppercase;">{{status}}</span>
+        <h2 style="margin:0;font-size:${title}px;font-weight:800;letter-spacing:2px;">{{invoiceTypeLabel}}</h2>
+        <p style="margin:6px 0 0;font-size:${small}px;opacity:.9;">#{{invoiceNumber}}</p>
+        <span style="display:inline-block;margin-top:8px;padding:4px 14px;border-radius:20px;background:rgba(255,255,255,.2);font-size:${label}px;font-weight:700;text-transform:uppercase;">{{status}}</span>
       </div>
     </div>`;
+    bodyTopPad = '28px';
   } else {
-    const border = cfg.headerStyle === 'line' ? `border-bottom:3px solid ${accent};` : '';
-    header = `<div style="display:flex;justify-content:space-between;align-items:flex-start;${border}padding-bottom:24px;margin-bottom:32px;">
-      <div>${logo}
-        <h1 style="margin:0;font-size:26px;font-weight:800;color:${accent};">{{companyName}}</h1>
-        <p style="margin:6px 0 0;white-space:pre-line;color:#64748b;font-size:13px;">{{companyAddress}}</p>
-        <p style="margin:4px 0 0;color:#64748b;font-size:13px;">{{companyPhone}} · {{companyEmail}}</p>
-        <p style="margin:4px 0 0;color:#64748b;font-size:13px;">{{companyWebsite}}</p>
-      </div>
-      <div style="text-align:right;">
-        <h2 style="margin:0;font-size:30px;font-weight:800;letter-spacing:2px;color:#0f172a;">{{invoiceTypeLabel}}</h2>
-        <p style="margin:6px 0 0;color:#64748b;font-size:13px;">#{{invoiceNumber}}</p>
-        <span style="display:inline-block;margin-top:8px;padding:4px 14px;border-radius:20px;background:${accent}1a;color:${accent};font-size:12px;font-weight:700;text-transform:uppercase;">{{status}}</span>
-      </div>
-    </div>`;
+    const border = c.layout === 'classic' ? `border-bottom:3px solid ${accent};` : c.layout === 'sidebar' ? `border-bottom:1px solid #eef2f7;` : '';
+    headerHtml = `<div style="padding:${pad} ${pad} 0;"><div style="display:flex;justify-content:space-between;align-items:flex-start;${border}padding-bottom:24px;margin-bottom:8px;">
+      ${companyLight}
+      ${metaLight}
+    </div></div>`;
+    bodyTopPad = '20px';
   }
 
-  const bodyPad = cfg.headerStyle === 'band' ? '40px' : '48px';
-  const bodyTop = cfg.headerStyle === 'band' ? '0' : '48px';
+  const thBg = c.accentTableHeader ? accent : '#f8fafc';
+  const thColor = c.accentTableHeader ? '#ffffff' : '#64748b';
+  const itemsTable = `<table style="width:100%;border-collapse:collapse;font-size:${base}px;color:${text};">
+      <thead><tr style="background:${thBg};color:${thColor};text-transform:uppercase;font-size:${label}px;letter-spacing:.05em;">
+        <th style="padding:10px 12px;text-align:left;">Description</th>
+        <th style="padding:10px 12px;text-align:center;">Qty</th>
+        <th style="padding:10px 12px;text-align:right;">Unit Price</th>
+        <th style="padding:10px 12px;text-align:right;">Amount</th>
+      </tr></thead>
+      <tbody>{{itemRows}}</tbody>
+    </table>`;
+
+  const pt = c.showPaymentTerms ? '{{paymentTermsBlock}}' : '';
+  const bd = c.showBankDetails ? '{{bankDetailsBlock}}' : '';
+  const outerBorder = c.layout === 'sidebar' ? `border-left:8px solid ${accent};` : '';
 
   return `<!--${CFG_MARK}${b64}-->
-<div style="max-width:800px;margin:0 auto;font-family:${font};color:#1e293b;background:#ffffff;">
-  <div style="padding:${bodyTop} ${bodyPad} 0;">${header}</div>
-  <div style="padding:${cfg.headerStyle === 'band' ? '32px' : '0'} ${bodyPad} 48px;">
-    <div style="display:flex;justify-content:space-between;margin-bottom:32px;font-size:14px;">
+<div style="max-width:800px;margin:0 auto;font-family:${font};color:${text};background:#ffffff;border-radius:${radius};overflow:hidden;${outerBorder}">
+  ${headerHtml}
+  <div style="padding:${bodyTopPad} ${pad} 44px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:28px;font-size:${base}px;">
       <div>
-        <p style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;font-weight:700;">Billed To</p>
+        <p style="margin:0 0 6px;font-size:${label}px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;font-weight:700;">Billed To</p>
         <p style="margin:0;font-weight:700;">{{clientName}}</p>
         <p style="margin:2px 0 0;color:#475569;">{{clientCompany}}</p>
         <p style="margin:2px 0 0;color:#475569;">{{clientEmail}}</p>
       </div>
       <div style="text-align:right;">
-        <p style="margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;font-weight:700;">Details</p>
+        <p style="margin:0 0 6px;font-size:${label}px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;font-weight:700;">Details</p>
         <p style="margin:0;color:#475569;"><strong>Issued:</strong> {{issueDate}}</p>
         <p style="margin:2px 0 0;color:#475569;"><strong>Due:</strong> {{dueDate}}</p>
       </div>
     </div>
 
-    {{itemsTable}}
+    ${itemsTable}
 
     <div style="display:flex;justify-content:flex-end;margin-top:24px;">
-      <table style="width:280px;font-size:14px;color:#334155;">
+      <table style="width:280px;font-size:${base}px;color:#334155;">
         <tr><td style="padding:6px 0;">Subtotal</td><td style="padding:6px 0;text-align:right;">{{subtotal}}</td></tr>
         {{taxRow}}
-        <tr style="border-top:2px solid #e2e8f0;"><td style="padding:10px 0;font-weight:800;font-size:16px;">Total Due</td><td style="padding:10px 0;text-align:right;font-weight:800;font-size:16px;color:${accent};">{{total}}</td></tr>
+        <tr style="border-top:2px solid #e2e8f0;"><td style="padding:10px 0;font-weight:800;font-size:${totalSz}px;">Total Due</td><td style="padding:10px 0;text-align:right;font-weight:800;font-size:${totalSz}px;color:${accent};">{{total}}</td></tr>
       </table>
     </div>
 
-    {{paymentTermsBlock}}
-    {{bankDetailsBlock}}
+    ${pt}
+    ${bd}
 
-    <p style="margin-top:48px;padding-top:20px;border-top:1px solid #eef2f7;text-align:center;color:#94a3b8;font-size:12px;">
+    <p style="margin-top:44px;padding-top:20px;border-top:1px solid #eef2f7;text-align:center;color:#94a3b8;font-size:${small}px;">
       ${footer} · {{companyName}}
     </p>
   </div>

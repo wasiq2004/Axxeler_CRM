@@ -22,13 +22,13 @@ const getBrandName = async (): Promise<string> => {
 const getBrandInfo = async (): Promise<{ name: string; currencySymbol: string }> => {
   try {
     const company = await prisma.companySetting.findUnique({ where: { id: 'company' } });
-    const code = company?.currency || 'USD';
+    const code = company?.currency || 'INR';
     return {
       name: company?.name?.trim() || 'CRM',
       currencySymbol: CURRENCY_SYMBOLS[code] || `${code} `,
     };
   } catch {
-    return { name: 'CRM', currencySymbol: '$' };
+    return { name: 'CRM', currencySymbol: '₹' };
   }
 };
 
