@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Invoice, InvoiceStatus } from '../../../types';
-import { ChevronsUpDown, ChevronUp, ChevronDown, Download, Edit, MoreVertical, Check, Send, Trash2 } from 'lucide-react';
+import { ChevronsUpDown, ChevronUp, ChevronDown, Download, Edit, MoreVertical, Check, Send, Trash2, Loader2 } from 'lucide-react';
 import { getInvoiceStatusMeta } from '../constants';
 import { useCurrency } from '../../../contexts/CurrencyContext';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { useCompany } from '../../../contexts/CompanyContext';
+import { useApi } from '../../../contexts/ApiContext';
+import { buildInvoiceContext, renderInvoiceTemplate, resolveInvoiceHtml } from '@/features/invoices/utils/invoiceTemplate';
+import { generateInvoicePdf } from '@/features/invoices/utils/htmlToPdf';
 
 interface InvoicesTableProps {
   invoices: (Invoice & { totalAmount: number })[];
@@ -22,7 +24,10 @@ const InvoiceRow: React.FC<{
 }> = ({ invoice, onUpdateStatus, onDelete }) => {
   const navigate = useNavigate();
   const { currency } = useCurrency();
+  const { companyInfo } = useCompany();
+  const { crmApi } = useApi();
   const [showMenu, setShowMenu] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,77 +43,21 @@ const InvoiceRow: React.FC<{
     };
   }, []);
 
-  const handleDownload = () => {
-    const doc = new jsPDF();
-
-    // Add Logo or Brand Color Header
-    doc.setFillColor(0, 121, 193); // #0079C1
-    doc.rect(0, 0, 210, 20, 'F');
-
-    // Invoice Header
-    doc.setFontSize(22);
-    doc.setTextColor(255, 255, 255);
-    doc.text('INVOICE', 14, 13);
-
-    // Invoice Details
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Invoice #: ${invoice.invoiceNumber}`, 14, 30);
-    doc.text(`Date: ${new Date(invoice.issueDate).toLocaleDateString()}`, 14, 35);
-    doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`, 14, 40);
-
-    // Bill To Section
-    doc.setFontSize(12);
-    doc.setTextColor(0, 121, 193);
-    doc.text('Bill To:', 14, 55);
-
-    doc.setFontSize(10);
-    doc.setTextColor(0);
-    doc.text(invoice.clientName, 14, 62);
-    if (invoice.clientCompany) {
-      doc.text(invoice.clientCompany, 14, 67);
+  // Download the SAME design shown on the invoice page (custom design / template /
+  // default) so the list and detail downloads are identical.
+  const handleDownload = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const html = await resolveInvoiceHtml(invoice, crmApi);
+      const ctx = buildInvoiceContext(invoice, companyInfo, currency.symbol);
+      await generateInvoicePdf(renderInvoiceTemplate(html, ctx), `Invoice_${invoice.invoiceNumber}.pdf`);
+    } catch (err) {
+      console.error('PDF download failed:', err);
+      alert('Could not generate the PDF. Please try again.');
+    } finally {
+      setDownloading(false);
     }
-    doc.text(invoice.clientEmail, 14, invoice.clientCompany ? 72 : 67);
-
-    // Table
-    const tableColumn = ["Item", "Quantity", "Price", "Total"];
-    const tableRows = invoice.items.map(item => [
-      item.description,
-      item.quantity,
-      `${currency.symbol}${(item.price || 0).toLocaleString()}`,
-      `${currency.symbol}${(item.quantity * item.price).toLocaleString()}`
-    ]);
-
-    autoTable(doc, {
-      startY: 85,
-      head: [tableColumn],
-      body: tableRows,
-      theme: 'striped',
-      headStyles: { fillColor: [0, 121, 193] },
-      styles: { fontSize: 10, cellPadding: 3 },
-    });
-
-    // Totals Section
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-
-    doc.setFontSize(10);
-    doc.text(`Subtotal:`, 140, finalY);
-    doc.text(`${currency.symbol}${(invoice.totalAmount / (1 + (invoice.taxRate || 0) / 100)).toLocaleString()}`, 195, finalY, { align: 'right' });
-
-    doc.text(`Tax (${invoice.taxRate || 0}%):`, 140, finalY + 5);
-    doc.text(`${currency.symbol}${(invoice.totalAmount - (invoice.totalAmount / (1 + (invoice.taxRate || 0) / 100))).toLocaleString()}`, 195, finalY + 5, { align: 'right' });
-
-    doc.setFontSize(12);
-    doc.setTextColor(0, 121, 193);
-    doc.text(`Total:`, 140, finalY + 12);
-    doc.text(`${currency.symbol}${invoice.totalAmount.toLocaleString()}`, 195, finalY + 12, { align: 'right' });
-
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    doc.text('Thank you for your business!', 105, 280, { align: 'center' });
-
-    doc.save(`Invoice-${invoice.invoiceNumber}.pdf`);
   };
 
   return (
@@ -158,10 +107,11 @@ const InvoiceRow: React.FC<{
               e.stopPropagation();
               handleDownload();
             }}
-            className="text-gray-400 hover:text-[#0079C1] p-1.5 rounded-md hover:bg-blue-50 transition-colors"
+            disabled={downloading}
+            className="text-gray-400 hover:text-[#0079C1] p-1.5 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-50"
             title="Download PDF"
           >
-            <Download className="w-4 h-4" />
+            {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           </button>
 
           {/* More Menu */}
